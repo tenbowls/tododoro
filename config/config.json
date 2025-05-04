@@ -1,12 +1,18 @@
 {
     "logging": {
-        "format": "{asctime} - {name:>8} - {levelname} - {message}",
-        "outfile": "\\log\\todoro.log"
+        "format": "{asctime} | {name:>8} | {levelname:>8} | {message}",
+        "outfile": "\\todoro.log"
     },
 
     "postgres": {
         "user": "python",
-        "dbname": "todoro",
-        "pw": ""
+        "pw": "",
+        "dbname": "todoro"
+    },
+
+    "pomodoro": {
+        "table_name": "pomodoro",
+        "enum_type": "timer_type",
+        "enum_values": "{break,focus}"
     }
 }
