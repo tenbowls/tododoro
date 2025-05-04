@@ -1,0 +1,12 @@
+{
+    "logging": {
+        "format": "{asctime} - {name:>8} - {levelname} - {message}",
+        "outfile": "\\log\\todoro.log"
+    },
+
+    "postgres": {
+        "user": "python",
+        "dbname": "todoro",
+        "pw": ""
+    }
+}
