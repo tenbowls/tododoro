@@ -16,10 +16,10 @@ cf = oh.read_config()
 db_login = cf["postgres"]
 pmdr_cf = cf["pomodoro"]
 
+pmdr_cols = pmdr_cf["columns"]
 db_name = db_login["dbname"]
 table_name = pmdr_cf["table_name"]
 enum_name = pmdr_cf["enum_type"]
-enum_values = pmdr_cf["enum_values"]
 
 # Creating cursor to db
 try: 
@@ -42,13 +42,13 @@ def check_type_exist(enum_name: str) -> bool:
     logger.debug(f"Checking if type ({enum_name}) exists")
     return cur.execute(f"SELECT EXISTS(SELECT * FROM pg_type WHERE typname='{enum_name}')").fetchone()[0]
 
-def check_type_values() -> bool:
-    logger.debug(f"Checking if type ({enum_name}) has the correct values ({enum_values})")
-    return cur.execute(f"SELECT enum_range(null::{enum_name});").fetchone()[0] == enum_values
+def get_table_columns(tb_name: str) -> set:
+    logger.debug(f"Getting columns for ({table_name})")
+    return set([c for c, _ in cur.execute(f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name='{tb_name}';").fetchall()])
 
 # Check if the pomodoro table exist
 if check_table_exist(table_name):
-    logger.debug(f"Table ({table_name}) in database ({db_name}) found.")
+    logger.debug(f"Table ({table_name}) in database ({db_name}) found")
 else:
     logger.info(f"Table ({table_name}) in database ({db_name}) not found, creating table")
     # Create the table if it doesn't exist 
@@ -56,34 +56,52 @@ else:
         cur.execute(f"CREATE TABLE {table_name} ();")
     except psycopg.errors.InsufficientPrivilege as e:
         logger.error(f"No access right to create table: {str(e).split('LINE')[0].replace("\n", "")}, check and grant access in pgAdmin and try again")
-        os._exit(1)
-    finally:
-        logger.debug(f"Table ({table_name}) in database ({db_name}) created")
-        conn.commit()
-        logger.debug("Db changes committed")
+        sys.exit(1)
 
-# Check if enum type exist and is correct
-# TODO
+# Check if enum type exist 
+# NOTE: enum values are not checked 
+if check_type_exist(enum_name):
+    logger.debug(f"Type ({enum_name}) found.")
 
-# # Check whether the enum type exist and create it if it doesn't exist
-# if not check_type_exist():
-#     logger.info(f"Type ({enum_name}) does not exist, creating type")
-#     cur.execute(f"CREATE TYPE {enum_name} AS ENUM ('break', 'focus');")
-# else:
-#     # If enum type exist, check if it has the correct values
-#     logger.debug(f"Type ({enum_name}) found.")
-#     if not check_type_values():
-#         # If incorrect enum values, delete type and recreate it
-#         logger.info(f"Type ({enum_name}) has incorrect values ({enum_values}). Dropping and creating type")
-#         cur.execute(f"DROP TYPE {enum_name}; \
-#                     CREATE TYPE {enum_name} AS ENUM ('break', 'focus');")
-#     else:
-#         logger.debug(f"Type ({enum_name}) has the correct values ({enum_values})")
+# If enum type does not exist, create it
+else:
+    logger.info(f"Type ({enum_name}) does not exist, creating type")
+    cur.execute(f"CREATE TYPE {enum_name} AS ENUM ('break', 'focus');")
 
-# Check if table column is correct
-# TODO 
+# Check if table column heading is correct
+# NOTE: the type for the column is NOT checked 
+cols = sorted(get_table_columns(table_name))
+desired_cols = sorted(set(pmdr_cols.keys()))
+if cols == desired_cols:
+    logger.debug(f"Columns of ({table_name}) are correct: {cols}")
+
+else:
+    logger.info(f"Columns of ({table_name}) are incorrect: {cols}, creating columns")
+    # Create columns if they don't exist 
+    # Loops through the set of column and check if it is in the existing columns, extra columns are ignored (not deleted)
+    for col in desired_cols:
+        if col not in cols:
+            cur.execute(f"ALTER TABLE {table_name} ADD COLUMN {col} {pmdr_cols[col]} NOT NULL")
+            logger.info(f"Added column ({col}) with type ({pmdr_cols[col]})")
+
+
+            if col == pmdr_cf["pkey"]:
+                cur.execute(f"ALTER TABLE {table_name} ADD PRIMARY KEY ({col})")
+                logger.info(f"Set column ({col}) as primary key")
+
+logger.debug("Db changes committed")
+
+# NOTE: values sequence are hard coded: duration, end time, start time and timer type
+# Any changes to the columns name will break this 
+def add_timer_row(start_time, end_time, duration:int , timer_category:str) -> None:
+    cur.execute(f"INSERT INTO {table_name} (start_time, end_time, duration, timer_category) \
+                VALUES ('{start_time}', '{end_time}', {duration}, '{timer_category}')")
+    conn.commit()
+    logger.info(f"Added entry to ({table_name}) with {start_time} START, {end_time} END, {duration} DURATION, {timer_category} TYPE")
 
 def end_connection() -> bool:
+    # Commit changes then close db cursor and db connection
+    conn.commit()
     logger.debug("Closing db cursor and db connection")
     cur.close()
     conn.close()

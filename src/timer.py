@@ -16,9 +16,9 @@ quit = False # Flag for quitting the timer
 def release_key(k): 
     '''Function is called when any key is released'''
     # Check that key presses are in the Todoro window (has the word "Todoro"), otherwise ignore
-    curr_window = GetWindowText(GetForegroundWindow())
+    curr_window = GetWindowText(GetForegroundWindow()).lower()
     # logger.debug(f"Detected keypress in: ({curr_window})")
-    if "Todoro" not in curr_window:
+    if "todoro" not in curr_window or "visual studio" in curr_window:
         return
     
     global pause, quit
@@ -40,7 +40,7 @@ def timer(minute: int, second=0) -> bool:
     listener = Listener(on_release=release_key)
     listener.start()
 
-    logger.debug(f"Timer of {minute} m and {second} s started.")
+    logger.debug(f"Timer of {minute} m and {second} s started")
     for s in range(minute*60 + second, 0, -1):
 
         # If paused, keep looping until unpaused 
@@ -57,9 +57,9 @@ def timer(minute: int, second=0) -> bool:
         # If q is pressed, quit the timer 
         if quit:
             sys.stdout.write("\r")
-            sys.stdout.write(f"Quitting timer with {min:>2} m {sec:>2} s left.")
+            sys.stdout.write(f"Quitting timer with {min:>2} m {sec:>2} s left")
             sys.stdout.flush()
-            logger.debug(f"Quitting timer with {min:>2} m {sec:>2} s left.")
+            logger.debug(f"Quitting timer with {min:>2} m {sec:>2} s left")
             break
 
         time.sleep(1)
@@ -70,11 +70,11 @@ def timer(minute: int, second=0) -> bool:
     sys.stdout.flush()
 
     if not quit:
-        print(f"{minute} m and {second} s completed.")
-        logger.debug(f"Timer of {minute} m and {second} s completed.")
+        print(f"{minute} m and {second} s completed")
+        logger.debug(f"Timer of {minute} m and {second} s completed")
     
     listener.stop()
-    logger.debug("Listener object stopped.")
+    logger.debug("Listener object stopped")
 
     # Clears the input stream so key pressed during timer is not shown 
     while msvcrt.kbhit():

@@ -1,4 +1,4 @@
-import json, logging, sys, os
+import json, logging, sys, os, datetime
 
 parent_dir = os.path.dirname(os.path.dirname(__file__)) # Get the parent directory of the current file path
 
@@ -24,3 +24,6 @@ def get_logger(name: str, mode='a') -> logging.Logger:
     config = read_config()["logging"]
     logging.basicConfig(level=logging.DEBUG, format=config["format"], style="{", filename=parent_dir + config["outfile"], filemode=mode)
     return logging.getLogger(name)
+
+def get_datetime_now():
+    return datetime.datetime.now().astimezone().isoformat(timespec='seconds', sep=' ')
