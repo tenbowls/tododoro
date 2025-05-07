@@ -1,6 +1,7 @@
-import json, logging, sys, os, datetime
+import json, logging, sys, os, datetime, chime 
 
 parent_dir = os.path.dirname(os.path.dirname(__file__)) # Get the parent directory of the current file path
+chime.theme("material")
 
 def input_check(msg: str, v: list) -> None:
     '''Checks that user input is valid (i.e. is part of the list provided) otherwise prompts the user again'''
@@ -22,8 +23,9 @@ def read_config() -> dict:
 def get_logger(name: str, mode='a') -> logging.Logger:
     '''Return a logger object with the name (name), with default mode of "a" (append)'''
     config = read_config()["logging"]
-    logging.basicConfig(level=logging.DEBUG, format=config["format"], style="{", filename=parent_dir + config["outfile"], filemode=mode)
+    logging.basicConfig(level=logging.DEBUG, format=config["format"], style="{", filename=os.path.dirname(__file__) + config["outfile"], filemode=mode)
     return logging.getLogger(name)
 
 def get_datetime_now():
+    '''Return the current date time in the specified format (e.g. 2025-05-06 18:48:20+08)'''
     return datetime.datetime.now().astimezone().isoformat(timespec='seconds', sep=' ')

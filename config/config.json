@@ -8,18 +8,5 @@
         "user": "python",
         "pw": "",
         "dbname": "todoro"
-    },
-
-    "pomodoro": {
-        "table_name": "pomodoro",
-        "enum_type": "timer_type",
-        "enum_values": "{break,focus}", 
-        "columns": {
-            "start_time": "TIMESTAMP WITH TIME ZONE",
-            "end_time": "TIMESTAMP WITH TIME ZONE",
-            "duration": "INT",
-            "timer_category": "timer_type"
-        },
-        "pkey": "start_time"
     }
 }

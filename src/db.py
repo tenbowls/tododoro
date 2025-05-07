@@ -1,9 +1,5 @@
 import psycopg, sys, os
-
-if __name__ == "__main__":
-    import overhead as oh
-else:
-    import src.overhead as oh 
+import overhead as oh 
 
 # Get logger and start logging
 logger = oh.get_logger("db_func")
@@ -11,19 +7,25 @@ logger.debug("Logger started")
 
 # Get db configurations
 logger.debug("Getting postgres configuration from json")
-cf = oh.read_config()
+db_login = oh.read_config()["postgres"]
 
-db_login = cf["postgres"]
-pmdr_cf = cf["pomodoro"]
+# NOTE: Hard coded table names, column names, enum name, and primary key
+table_name = "pomodoro"
+start_time = "start_time"
+end_time = "end_time"
+duration = "duration" 
+timer_category = "timer_category"
+enum_name = "timer_type"
+pkey = "start_time"
+task = "task"
 
-pmdr_cols = pmdr_cf["columns"]
-db_name = db_login["dbname"]
-table_name = pmdr_cf["table_name"]
-enum_name = pmdr_cf["enum_type"]
+# First element in list is the type of the column, second element indicates if NOT NULL (true = NOT NULL)
+columns = {start_time: ["TIMESTAMP WITH TIME ZONE", True], end_time: ["TIMESTAMP WITH TIME ZONE", True], 
+           duration: ["INT", True], timer_category: [enum_name, True], task: ["VARCHAR", False]}
 
-# Creating cursor to db
+# Connecting to db and creating cursor to db
 try: 
-    conn = psycopg.connect(f"user={db_login["user"]} dbname={db_name} password={db_login["pw"]}")
+    conn = psycopg.connect(f"user={db_login["user"]} dbname={db_login["dbname"]} password={db_login["pw"]}")
     logger.debug("Connected to db")
     cur = conn.cursor()
     logger.debug("Cursor to db created")
@@ -36,7 +38,7 @@ except psycopg.OperationalError as e:
 def check_table_exist(tb_name: str) -> bool:
     logger.debug(f"Checking if table ({tb_name}) exists")
     return cur.execute(f"""SELECT EXISTS(SELECT * FROM information_schema.tables 
-                          WHERE table_name='{tb_name}' AND table_schema='public' AND table_catalog='{db_name}')""").fetchone()[0]
+                          WHERE table_name='{tb_name}' AND table_schema='public' AND table_catalog='{db_login["dbname"]}')""").fetchone()[0]
 
 def check_type_exist(enum_name: str) -> bool:
     logger.debug(f"Checking if type ({enum_name}) exists")
@@ -48,9 +50,9 @@ def get_table_columns(tb_name: str) -> set:
 
 # Check if the pomodoro table exist
 if check_table_exist(table_name):
-    logger.debug(f"Table ({table_name}) in database ({db_name}) found")
+    logger.debug(f"Table ({table_name}) in database found")
 else:
-    logger.info(f"Table ({table_name}) in database ({db_name}) not found, creating table")
+    logger.info(f"Table ({table_name}) in database not found, creating table")
     # Create the table if it doesn't exist 
     try:
         cur.execute(f"CREATE TABLE {table_name} ();")
@@ -71,7 +73,7 @@ else:
 # Check if table column heading is correct
 # NOTE: the type for the column is NOT checked 
 cols = sorted(get_table_columns(table_name))
-desired_cols = sorted(set(pmdr_cols.keys()))
+desired_cols = sorted(set(columns.keys()))
 if cols == desired_cols:
     logger.debug(f"Columns of ({table_name}) are correct: {cols}")
 
@@ -81,11 +83,11 @@ else:
     # Loops through the set of column and check if it is in the existing columns, extra columns are ignored (not deleted)
     for col in desired_cols:
         if col not in cols:
-            cur.execute(f"ALTER TABLE {table_name} ADD COLUMN {col} {pmdr_cols[col]} NOT NULL")
-            logger.info(f"Added column ({col}) with type ({pmdr_cols[col]})")
+            cur.execute(f"ALTER TABLE {table_name} ADD COLUMN {col} {columns[col][0]}{ "NOT NULL"*int(columns[col][1])}")
+            logger.info(f"Added column ({col}) with type ({columns[col][0]}) and NOT NULL is {columns[col][1]}")
 
 
-            if col == pmdr_cf["pkey"]:
+            if col == pkey:
                 cur.execute(f"ALTER TABLE {table_name} ADD PRIMARY KEY ({col})")
                 logger.info(f"Set column ({col}) as primary key")
 
@@ -93,11 +95,11 @@ logger.debug("Db changes committed")
 
 # NOTE: values sequence are hard coded: duration, end time, start time and timer type
 # Any changes to the columns name will break this 
-def add_timer_row(start_time, end_time, duration:int , timer_category:str) -> None:
-    cur.execute(f"INSERT INTO {table_name} (start_time, end_time, duration, timer_category) \
-                VALUES ('{start_time}', '{end_time}', {duration}, '{timer_category}')")
+def add_timer_row(start_time, end_time, duration:int , timer_category:str, task="") -> None:
+    cur.execute(f"INSERT INTO {table_name} (start_time, end_time, duration, timer_category, task) \
+                VALUES ('{start_time}', '{end_time}', {duration}, '{timer_category}', '{task}')".replace("'None'","NULL"))
     conn.commit()
-    logger.info(f"Added entry to ({table_name}) with {start_time} START, {end_time} END, {duration} DURATION, {timer_category} TYPE")
+    logger.info(f"Added entry to ({table_name}) with {start_time} START, {end_time} END, {duration} DURATION, {timer_category} TYPE, {task} TASK")
 
 def end_connection() -> bool:
     # Commit changes then close db cursor and db connection

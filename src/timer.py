@@ -1,11 +1,7 @@
 import time, msvcrt, sys
 from pynput.keyboard import Key, Listener 
 from win32.win32gui import GetWindowText, GetForegroundWindow
-
-if __name__ == "__main__":
-    import overhead as oh
-else:
-    import src.overhead as oh 
+import overhead as oh 
 
 # Get logger and start logging 
 logger = oh.get_logger("Timer")
