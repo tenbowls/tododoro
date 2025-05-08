@@ -1,12 +1,21 @@
 {
     "logging": {
-        "format": "{asctime} | {name:>8} | {levelname:>8} | {message}",
+        "format": "{asctime} | {name:>10} | {levelname:>8} | {message}",
         "outfile": "\\todoro.log"
     },
+
+    "db_type": "sql",
 
     "postgres": {
         "user": "python",
         "pw": "",
         "dbname": "todoro"
+    }, 
+
+    "timer": {
+        "focus-short": 25,
+        "focus-extended": 45, 
+        "break-short": 10,
+        "break-extended": 40
     }
 }

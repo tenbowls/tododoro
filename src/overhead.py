@@ -1,14 +1,11 @@
-import json, logging, sys, os, datetime, chime 
+import json, logging, sys, os, datetime
 
-parent_dir = os.path.dirname(os.path.dirname(__file__)) # Get the parent directory of the current file path
-chime.theme("material")
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
 
-def input_check(msg: str, v: list) -> None:
-    '''Checks that user input is valid (i.e. is part of the list provided) otherwise prompts the user again'''
-    ans = input(msg)
-    while ans not in v:
-        ans = input(msg)
-    return ans 
+parent_dir = resource_path(os.path.dirname(os.path.dirname(__file__))) # Get the parent directory of the current file path
 
 def read_config() -> dict:
     '''Read the config.json file and return contents as a dictionary'''

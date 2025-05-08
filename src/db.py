@@ -1,5 +1,9 @@
 import psycopg, sys, os
-import overhead as oh 
+
+if __name__ == "__main__":
+    import overhead as oh 
+else: 
+    import src.overhead as oh 
 
 # Get logger and start logging
 logger = oh.get_logger("db_func")
@@ -33,7 +37,7 @@ try:
 except psycopg.OperationalError as e:
     logger.error("Connection to database failed")
     logger.error(e)
-    sys.exit(1)
+    raise e
 
 def check_table_exist(tb_name: str) -> bool:
     logger.debug(f"Checking if table ({tb_name}) exists")
@@ -95,11 +99,15 @@ logger.debug("Db changes committed")
 
 # NOTE: values sequence are hard coded: duration, end time, start time and timer type
 # Any changes to the columns name will break this 
-def add_timer_row(start_time, end_time, duration:int , timer_category:str, task="") -> None:
-    cur.execute(f"INSERT INTO {table_name} (start_time, end_time, duration, timer_category, task) \
-                VALUES ('{start_time}', '{end_time}', {duration}, '{timer_category}', '{task}')".replace("'None'","NULL"))
-    conn.commit()
-    logger.info(f"Added entry to ({table_name}) with {start_time} START, {end_time} END, {duration} DURATION, {timer_category} TYPE, {task} TASK")
+def add_timer_row(start_time: str, end_time: str, duration:int , timer_category:str, task:str) -> None:
+    try:
+        cur.execute(f"INSERT INTO {table_name} (start_time, end_time, duration, timer_category, task) \
+                    VALUES ('{start_time}', '{end_time}', {duration}, '{timer_category}', '{task}')".replace("'None'","NULL"))
+        conn.commit()
+        logger.info(f"Added entry to ({table_name}) with {start_time} START, {end_time} END, {duration} DURATION, {timer_category} TYPE, {task} TASK")
+    except Exception as e:
+        logger.error(f"Failed to add entry to ({table_name}): {e}")
+        raise e
 
 def end_connection() -> bool:
     # Commit changes then close db cursor and db connection
