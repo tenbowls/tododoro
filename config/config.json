@@ -1,7 +1,7 @@
 {
     "logging": {
-        "format": "{asctime} | {name:>10} | {levelname:>8} | {message}",
-        "outfile": "\\todoro.log"
+        "format": "{asctime} | {name:>12} | {levelname:>8} | {message}",
+        "outfile": "\\tododoro.log"
     },
 
     "db_type": "sql",
@@ -9,7 +9,7 @@
     "postgres": {
         "user": "python",
         "pw": "",
-        "dbname": "todoro"
+        "dbname": "tododoro"
     }, 
 
     "timer": {

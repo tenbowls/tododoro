@@ -15,7 +15,7 @@ def read_config() -> dict:
             return config
     except Exception as e:
         print("Failed to open config.json: ", e)
-        sys.exit(1)
+        raise e 
 
 def get_logger(name: str, mode='a') -> logging.Logger:
     '''Return a logger object with the name (name), with default mode of "a" (append)'''

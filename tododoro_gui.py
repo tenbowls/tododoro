@@ -2,31 +2,46 @@ import sys, winsound
 from PySide6.QtCore import QTime, QTimer, Slot, Qt
 from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QCheckBox, QWidget, QGridLayout, QTabWidget, QLCDNumber, QPushButton, QHBoxLayout, QSizePolicy, \
 QLineEdit, QMessageBox 
+from PySide6.QtGui import QIcon
 import src.overhead as oh 
 from enum import Enum
 
-timer_config = oh.read_config()['timer']
-logger = oh.get_logger("Todoro GUI", "w")
-logger.debug("Logger started")
-
+# For displaying error messages with the critical icon
 class MsgBox(QMessageBox):
     def __init__(self, msg):
         super().__init__()
         self.setText(msg)
         self.setIcon(QMessageBox.Icon.Critical)
 
-def convert_to_ms(mins: int, sec=0, h=0) -> int:
-    '''Convert mins, sec, and h to millisecond'''
-    return mins * 60 * 1000 + sec * 1000 + h * 60 * 60 * 1000
+try:
+    timer_config = oh.read_config()['timer']
+except Exception as e:
+    app = QApplication([])
+    error_msg = MsgBox(str(e))
+    error_msg.exec()
+    sys.exit(1)
 
-def convert_from_ms(ms: int) -> tuple:
-    '''Convert millisecond to hr, mins, sec'''
-    hr = ms // (1000 * 60 * 60)
-    mins = mins = (ms - hr * (1000 * 60 * 60)) // (1000 * 60)
-    sec = (ms - hr * (1000 * 60 * 60) - mins * (1000 * 60))  // 1000
-    return hr, mins, sec 
+logger = oh.get_logger("Tododoro GUI", "w")
+logger.debug("Logger started")
 
-class timer(QLCDNumber):
+# For storing the 4 different timers from the config file to be used by the program
+class TimerMode(Enum):
+    FOCUS_SHORT = timer_config["focus-short"]
+    FOCUS_LONG = timer_config["focus-extended"]
+    BREAK_SHORT = timer_config["break-short"]
+    BREAK_LONG = timer_config["break-extended"]
+
+# Colours for the stylesheet of the buttons and timer objects
+class ObjectsColour(Enum):
+    FOCUS = "#CFFFFF"
+    BREAK = "#E6FFE6"
+    START = "#52FF52"
+    STOP = "#FF9652"
+    STOP_DISABLED = "#FFE9DB"
+    PAUSE = "#FFE90C"
+
+# Timer object 
+class Timer(QLCDNumber):
     def __init__(self, mins, sec=0, bgcolor="#FFFFFF"):
         super().__init__()
         # LCD Number Text Object
@@ -65,34 +80,31 @@ class timer(QLCDNumber):
         self.delay.start(500)
 
     def pause_timer(self):
-        # Timer is paused when the user presses the start button 
+        # Timer is paused when the user presses the pause button 
         self.delay.stop()
         remaining_time = self.timer.remainingTime()
         self.timer.stop()
         self.timer.setInterval(remaining_time)
 
     def reset_timer(self, mins, sec=0):
-        # Timer is reset to the original time
+        # Timer is reset to the original time 
         self.timer.stop()
         self.delay.stop()
         self.timer.setInterval((mins * 60 + sec) * 1000)
         self.display(QTime(0, mins, sec).toString("mm:ss"))
 
-class TimerMode(Enum):
-    FOCUS_SHORT = timer_config["focus-short"]
-    FOCUS_LONG = timer_config["focus-extended"]
-    BREAK_SHORT = timer_config["break-short"]
-    BREAK_LONG = timer_config["break-extended"]
+def convert_to_ms(mins: int, sec=0, h=0) -> int:
+    '''Convert mins, sec, and h to millisecond'''
+    return mins * 60 * 1000 + sec * 1000 + h * 60 * 60 * 1000
 
-class ObjectsColour(Enum):
-    FOCUS = "#CFFFFF"
-    BREAK = "#E6FFE6"
-    START = "#52FF52"
-    STOP = "#FF9652"
-    STOP_DISABLED = "#FFE9DB"
-    PAUSE = "#FFE90C"
+def convert_from_ms(ms: int) -> tuple:
+    '''Convert millisecond to hr, mins, sec'''
+    hr = ms // (1000 * 60 * 60)
+    mins = mins = (ms - hr * (1000 * 60 * 60)) // (1000 * 60)
+    sec = (ms - hr * (1000 * 60 * 60) - mins * (1000 * 60))  // 1000
+    return hr, mins, sec 
 
-class TODORO(QWidget):
+class Tododoro(QWidget):
     def __init__(self):
         super().__init__()
 
@@ -103,13 +115,11 @@ class TODORO(QWidget):
         self.timer_ending_time = None
         self.timer_task = None
 
-        self.setWindowTitle("Tododoro")
-
         logger.debug("Creating objects for GUI")
         
         # Create two timers 
-        self.timer_focus = timer(TimerMode.FOCUS_LONG.value, bgcolor=ObjectsColour.FOCUS.value)
-        self.timer_break = timer(TimerMode.BREAK_LONG.value, bgcolor=ObjectsColour.BREAK.value)
+        self.timer_focus = Timer(TimerMode.FOCUS_LONG.value, bgcolor=ObjectsColour.FOCUS.value)
+        self.timer_break = Timer(TimerMode.BREAK_LONG.value, bgcolor=ObjectsColour.BREAK.value)
 
         # Create check box for extended time and set it to be checked by default
         self.timer_type = QCheckBox("Extended time")
@@ -169,8 +179,6 @@ class TODORO(QWidget):
         self.layout.setRowStretch(4, 4)
         self.layout.addWidget(self.tabbar, 1, 1)
         self.layout.addWidget(self.timer_type, 2, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
-
-        # self.setStyleSheet("background-color: #EEEEEE;")
 
     @Slot()
     def timer_type_changed(self):
@@ -279,12 +287,14 @@ class TODORO(QWidget):
         self.reset()
 
 
-class TODORO_WIN(QMainWindow):
+class Tododoro_Win(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.layout = QGridLayout()
-        tdr = TODORO()
-        self.layout.addLayout(tdr.layout, 0, 1)
+        tddr = Tododoro()
+        self.setCentralWidget(tddr)
+        # self.setWindowIcon(QIcon("timer2.ico"))
+        self.setWindowTitle("Tododoro")
+        # self.setStyleSheet("background-color: #EEEEEE")
 
 if __name__ == "__main__":
     app = QApplication([])
@@ -293,10 +303,10 @@ if __name__ == "__main__":
         import src.db as db
     except Exception as e:
         error_msg = MsgBox(str(e))
-        MsgBox.exec()
+        error_msg.exec()
 
     _, _, x, y = app.primaryScreen().geometry().getRect()
-    item = TODORO()
+    item = Tododoro_Win()
     item.show()
     app.exec()
     db.end_connection()
