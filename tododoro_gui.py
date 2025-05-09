@@ -13,6 +13,7 @@ class MsgBox(QMessageBox):
         self.setText(msg)
         self.setIcon(QMessageBox.Icon.Critical)
 
+# Handle error in case json config file cannot be read
 try:
     timer_config = oh.read_config()['timer']
 except Exception as e:
@@ -140,6 +141,7 @@ class Tododoro(QWidget):
         self.tabbar = QTabWidget()
         self.tabbar.addTab(self.timer_focus, "Focus")
         self.tabbar.addTab(self.timer_break, "Break")
+        self.tabbar.setTabPosition(QTabWidget.TabPosition.West)
         # self.tabbar.setStyleSheet(f"""
         #                           QTabBar {{
         #                               background-color: {black}
@@ -154,7 +156,7 @@ class Tododoro(QWidget):
         self.start_pause.clicked.connect(self.start_or_pause_timer)
         self.timer_focus.timer.timeout.connect(self.timer_completed)
         self.timer_break.timer.timeout.connect(self.timer_completed)
-        self.stop_button.clicked.connect(self.reset)
+        self.stop_button.clicked.connect(self.timer_stopped)
 
         w, h = 500, 200
         self.resize(w, h)
@@ -236,7 +238,7 @@ class Tododoro(QWidget):
                 self.timer_mode = TimerMode.FOCUS_SHORT
 
             elif self.timer_type.checkState() == Qt.CheckState.Checked and self.tabbar.currentIndex() == 0:
-                self.timer_mode = TimerMode.FOCUS_SHORT
+                self.timer_mode = TimerMode.FOCUS_LONG
 
             elif self.timer_type.checkState() == Qt.CheckState.Unchecked and self.tabbar.currentIndex() == 1:
                 self.timer_mode = TimerMode.BREAK_SHORT
@@ -244,8 +246,17 @@ class Tododoro(QWidget):
             elif self.timer_type.checkState() == Qt.CheckState.Checked and self.tabbar.currentIndex() == 1:
                 self.timer_mode = TimerMode.BREAK_LONG
 
-
     @Slot()
+    def timer_stopped(self):
+        # Once timer is stopped, time lapsed will be added to the database 
+        logger.debug("Timer stopped")
+        self.timer_ending_time = oh.get_datetime_now()
+        if self.timer_mode.name[:5].lower() == "break":
+            self.add_to_db((self.timer_mode.value * 60) - (self.timer_break.timer.remainingTime() / 1000))
+        else:
+            self.add_to_db((self.timer_mode.value * 60) - (self.timer_focus.timer.remainingTime() / 1000))
+        self.reset()
+
     def reset(self):
         # Reset the timer and buttons back to the initial state once timer is completed or stopped 
         logger.debug("Resetting timer")
@@ -270,21 +281,25 @@ class Tododoro(QWidget):
 
     @Slot()
     def timer_completed(self):
+        # Once timer has completed, trigger a beep sound and add entry to the database
         winsound.Beep(500, 800)
         logger.debug("Timer successfully completed")
         self.timer_ending_time = oh.get_datetime_now()
         
         # Add to database 
+        self.add_to_db(self.timer_mode.value * 60)
+        self.reset()
+
+    def add_to_db(self, duration: int):
+        # Call function from db to add entry to database, displays error if encountered 
         try:
-            db.add_timer_row(self.timer_starting_time, self.timer_ending_time, self.timer_mode.value * 60, str(self.timer_mode.name)[:5].lower(), self.timer_task)
+            db.add_timer_row(self.timer_starting_time, self.timer_ending_time, duration, str(self.timer_mode.name)[:5].lower(), self.timer_task)
         except Exception as e:
             logger.error(f"Adding timer details to database failed: {e}")
             error_msg = MsgBox(str(e))
             self.reset()
             error_msg.exec()
             return 
-            
-        self.reset()
 
 
 class Tododoro_Win(QMainWindow):

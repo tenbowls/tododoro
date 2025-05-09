@@ -46,8 +46,8 @@ The section below contains information on the usage of the timer. When the progr
 - The timing for the timers can be set in the config.json file (refer to section above), note that the maximum limit is 59mins
 - The "Extended time" check box can be toggled to switch between the short timer or the extended timer 
 - Timer can be paused, resumed, and stopped 
-- Once the timer is stopped, it will reset, and the SQL table will NOT be updated
-- Once the timer has successfully ended (not stopped), the timer will add an entry to the SQL database 
+- Once the timer is stopped, an entry of the time lapsed will be added to the SQL table, and timer will be reset
+- Once the timer has successfully ended, an entry will be added to the SQL table, and timer will be reset
 - A beep sound will be emitted once timer has completed 
 
 *Interface of the timer* \
