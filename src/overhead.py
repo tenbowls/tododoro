@@ -16,6 +16,15 @@ def read_config() -> dict:
     except Exception as e:
         print("Failed to open config.json: ", e)
         raise e 
+    
+def update_config(newdict: dict) -> None:
+    '''Update the config.json file'''
+    try:
+        with open(parent_dir + "\\config\\config.json", "w") as fconfig:
+            json.dump(newdict, fconfig, indent=4)
+    except Exception as e:
+        print("Failed to update config.json")
+        raise e
 
 def get_logger(name: str, mode='a') -> logging.Logger:
     '''Return a logger object with the name (name), with default mode of "a" (append)'''

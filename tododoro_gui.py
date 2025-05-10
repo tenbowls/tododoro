@@ -1,8 +1,8 @@
 import sys, winsound 
 from PySide6.QtCore import QTime, QTimer, Slot, Qt
 from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QCheckBox, QWidget, QGridLayout, QTabWidget, QLCDNumber, QPushButton, QHBoxLayout, QSizePolicy, \
-QLineEdit, QMessageBox 
-from PySide6.QtGui import QIcon
+QLineEdit, QMessageBox, QStatusBar, QDialog, QDialogButtonBox, QVBoxLayout
+from PySide6.QtGui import QIcon, QAction 
 import src.overhead as oh 
 from enum import Enum
 
@@ -15,7 +15,10 @@ class MsgBox(QMessageBox):
 
 # Handle error in case json config file cannot be read
 try:
-    timer_config = oh.read_config()['timer']
+    config = oh.read_config()
+    timer_config = config['timer']
+    db_config = config['postgres']
+
 except Exception as e:
     app = QApplication([])
     error_msg = MsgBox(str(e))
@@ -26,11 +29,20 @@ logger = oh.get_logger("Tododoro GUI", "w")
 logger.debug("Logger started")
 
 # For storing the 4 different timers from the config file to be used by the program
-class TimerMode(Enum):
+class TimerModeClass():
     FOCUS_SHORT = timer_config["focus-short"]
     FOCUS_LONG = timer_config["focus-extended"]
     BREAK_SHORT = timer_config["break-short"]
     BREAK_LONG = timer_config["break-extended"]
+
+    def update_timers(self):
+        self.FOCUS_SHORT = timer_config["focus-short"]
+        self.FOCUS_LONG = timer_config["focus-extended"]
+        self.BREAK_SHORT = timer_config["break-short"]
+        self.BREAK_LONG = timer_config["break-extended"]
+
+TimerMode = TimerModeClass()
+
 
 # Colours for the stylesheet of the buttons and timer objects
 class ObjectsColour(Enum):
@@ -111,7 +123,7 @@ class Tododoro(QWidget):
 
         # Values to add to db when timer successfully complete 
         self.initial = True
-        self.timer_mode = TimerMode.FOCUS_LONG
+        self.timer_mode = "focus", TimerMode.FOCUS_LONG
         self.timer_starting_time = None 
         self.timer_ending_time = None
         self.timer_task = None
@@ -119,8 +131,8 @@ class Tododoro(QWidget):
         logger.debug("Creating objects for GUI")
         
         # Create two timers 
-        self.timer_focus = Timer(TimerMode.FOCUS_LONG.value, bgcolor=ObjectsColour.FOCUS.value)
-        self.timer_break = Timer(TimerMode.BREAK_LONG.value, bgcolor=ObjectsColour.BREAK.value)
+        self.timer_focus = Timer(TimerMode.FOCUS_LONG, bgcolor=ObjectsColour.FOCUS.value)
+        self.timer_break = Timer(TimerMode.BREAK_LONG, bgcolor=ObjectsColour.BREAK.value)
 
         # Create check box for extended time and set it to be checked by default
         self.timer_type = QCheckBox("Extended time")
@@ -186,12 +198,12 @@ class Tododoro(QWidget):
     def timer_type_changed(self):
         # Change the timer timing when the type is changed
         if self.timer_type.checkState() == Qt.CheckState.Unchecked:
-            self.timer_focus.change_time(TimerMode.FOCUS_SHORT.value)
-            self.timer_break.change_time(TimerMode.BREAK_SHORT.value)
+            self.timer_focus.change_time(TimerMode.FOCUS_SHORT)
+            self.timer_break.change_time(TimerMode.BREAK_SHORT)
 
         else:
-            self.timer_focus.change_time(TimerMode.FOCUS_LONG.value)
-            self.timer_break.change_time(TimerMode.BREAK_LONG.value)
+            self.timer_focus.change_time(TimerMode.FOCUS_LONG)
+            self.timer_break.change_time(TimerMode.BREAK_LONG)
         
     def pause_timer(self, timer: QTimer):
         timer.pause_timer()
@@ -235,26 +247,26 @@ class Tododoro(QWidget):
 
             # Get the timer type so the duration can be added to the db once timer is completed 
             if self.timer_type.checkState() == Qt.CheckState.Unchecked and self.tabbar.currentIndex() == 0:
-                self.timer_mode = TimerMode.FOCUS_SHORT
+                self.timer_mode = "focus", TimerMode.FOCUS_SHORT
 
             elif self.timer_type.checkState() == Qt.CheckState.Checked and self.tabbar.currentIndex() == 0:
-                self.timer_mode = TimerMode.FOCUS_LONG
+                self.timer_mode = "focus", TimerMode.FOCUS_LONG
 
             elif self.timer_type.checkState() == Qt.CheckState.Unchecked and self.tabbar.currentIndex() == 1:
-                self.timer_mode = TimerMode.BREAK_SHORT
+                self.timer_mode = "break", TimerMode.BREAK_SHORT
 
             elif self.timer_type.checkState() == Qt.CheckState.Checked and self.tabbar.currentIndex() == 1:
-                self.timer_mode = TimerMode.BREAK_LONG
+                self.timer_mode = "break", TimerMode.BREAK_LONG
 
     @Slot()
     def timer_stopped(self):
         # Once timer is stopped, time lapsed will be added to the database 
         logger.debug("Timer stopped")
         self.timer_ending_time = oh.get_datetime_now()
-        if self.timer_mode.name[:5].lower() == "break":
-            self.add_to_db((self.timer_mode.value * 60) - (self.timer_break.timer.remainingTime() / 1000))
+        if self.timer_mode[0] == "break":
+            self.add_to_db((self.timer_mode[1]* 60) - (self.timer_break.timer.remainingTime() / 1000))
         else:
-            self.add_to_db((self.timer_mode.value * 60) - (self.timer_focus.timer.remainingTime() / 1000))
+            self.add_to_db((self.timer_mode[1] * 60) - (self.timer_focus.timer.remainingTime() / 1000))
         self.reset()
 
     def reset(self):
@@ -272,12 +284,12 @@ class Tododoro(QWidget):
         self.stop_button.setStyleSheet(f"background-color: {ObjectsColour.STOP_DISABLED.value}")
 
         if self.timer_type.checkState() == Qt.CheckState.Unchecked:
-            self.timer_focus.reset_timer(TimerMode.FOCUS_SHORT.value)
-            self.timer_break.reset_timer(TimerMode.BREAK_SHORT.value)
+            self.timer_focus.reset_timer(TimerMode.FOCUS_SHORT)
+            self.timer_break.reset_timer(TimerMode.BREAK_SHORT)
                                     
         else:
-            self.timer_focus.reset_timer(TimerMode.FOCUS_LONG.value)
-            self.timer_break.reset_timer(TimerMode.BREAK_LONG.value)
+            self.timer_focus.reset_timer(TimerMode.FOCUS_LONG)
+            self.timer_break.reset_timer(TimerMode.BREAK_LONG)
 
     @Slot()
     def timer_completed(self):
@@ -287,29 +299,140 @@ class Tododoro(QWidget):
         self.timer_ending_time = oh.get_datetime_now()
         
         # Add to database 
-        self.add_to_db(self.timer_mode.value * 60)
+        self.add_to_db(self.timer_mode[1] * 60)
         self.reset()
 
     def add_to_db(self, duration: int):
         # Call function from db to add entry to database, displays error if encountered 
         try:
-            db.add_timer_row(self.timer_starting_time, self.timer_ending_time, duration, str(self.timer_mode.name)[:5].lower(), self.timer_task)
+            db.add_timer_row(self.timer_starting_time, self.timer_ending_time, duration, str(self.timer_mode[0]), self.timer_task)
         except Exception as e:
             logger.error(f"Adding timer details to database failed: {e}")
             error_msg = MsgBox(str(e))
             self.reset()
             error_msg.exec()
             return 
+        
+class SettingsDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Settings")
+        buttons = QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel 
+        self.buttonBox = QDialogButtonBox(buttons)
+
+        self.buttonBox.accepted.connect(self.accept)
+        self.buttonBox.rejected.connect(self.reject)
+
+        txt_timer_settings = QLabel("Timer Settings")
+        txt_timer_settings.setStyleSheet("font-weight: bold")
+        txt_db_settings = QLabel("Database Settings")
+        txt_db_settings.setStyleSheet("font-weight: bold")
+
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
+
+        # Layout for Timer Settings 
+        layout_timer_config = QGridLayout()
+        layout_timer_config.addWidget(txt_timer_settings, 0, 0, 1, 2, Qt.AlignmentFlag.AlignCenter)
+        self.timer_qlineedit_dict = {}
+        for i, (k, v) in enumerate(timer_config.items(), 1):
+            self.timer_qlineedit_dict[k] = (QLineEdit(str(v)), i)
+        for k, v in self.timer_qlineedit_dict.items():
+            layout_timer_config.addWidget(QLabel(k), v[1], 0, Qt.AlignmentFlag.AlignRight)
+            layout_timer_config.addWidget(v[0], v[1], 1)
+        self.layout.addLayout(layout_timer_config)
+
+        self.layout.addWidget(QLabel("")) #Adds an empty row after the timer config
+
+        # Layout for Database Settings 
+        layout_db_config = QGridLayout()
+        layout_db_config.addWidget(txt_db_settings, 0, 0, 1, 2, Qt.AlignmentFlag.AlignCenter)
+        self.db_qlineedit_dict = {}
+        for i, (k, v) in enumerate(db_config.items(), 1):
+            self.db_qlineedit_dict[k] = (QLineEdit(v), i)
+        for k, v in self.db_qlineedit_dict.items():
+            layout_db_config.addWidget(QLabel(k), v[1], 0, Qt.AlignmentFlag.AlignRight)
+            layout_db_config.addWidget(v[0], v[1], 1)
+        self.layout.addLayout(layout_db_config)
+
+        self.layout.addWidget(QLabel("")) #Adds an empty row after the db config
+
+        layout_button = QGridLayout()
+        layout_button.addWidget(self.buttonBox, 0, 0, Qt.AlignmentFlag.AlignCenter)
+        self.layout.addLayout(layout_button)
+
+        self.resize(self.minimumSize())
+
+    def accept(self):
+        check = True
+        # Checking timer inputs to make sure they are int
+        for k, v in self.timer_qlineedit_dict.items():
+            if not v[0].displayText().isdigit():
+                error_msg = MsgBox(f"Timer value {v[0].displayText()} in {k} is not an integer")
+                error_msg.exec()
+                check = False
+                return
+
+        for v in self.db_qlineedit_dict.values():
+            if v[0].isModified():
+                restart_msg = QMessageBox(text="Database settings have be modified. Please restart to use the latest settings!", icon=QMessageBox.Icon.Information)
+                restart_msg.exec()
+                print("is modified")
+                break
+
+        # If input ok, update JSON file
+        for k, v in self.timer_qlineedit_dict.items():
+            timer_config[k] = int(v[0].displayText())
+        for k, v in self.db_qlineedit_dict.items():
+            db_config[k] = v[0].displayText() 
+        config["timer"] = timer_config
+        config["postgres"] = db_config
+
+        try:
+            oh.update_config(config)
+        except Exception as e:
+            error_msg = MsgBox(str(e))
+            error_msg.exec()
+
+        # End the dialog if ok
+        QDialog.accept(self)
+
+        
 
 
 class Tododoro_Win(QMainWindow):
     def __init__(self):
         super().__init__()
-        tddr = Tododoro()
-        self.setCentralWidget(tddr)
-        # self.setWindowIcon(QIcon("timer2.ico"))
+        self.tddr = Tododoro()
+        self.setCentralWidget(self.tddr)
         self.setWindowTitle("Tododoro")
+        # self.setWindowIcon(QIcon("timer2.ico"))
         # self.setStyleSheet("background-color: #EEEEEE")
+
+        menu = self.menuBar()
+        file_menu = menu.addMenu("File")
+
+        settings = QAction("Settings", self)
+        settings.setStatusTip("The settings button")
+        settings.triggered.connect(self.settings_clicked)
+
+        file_menu.addAction(settings) 
+
+        # self.setStatusBar(QStatusBar(self))
+
+    def settings_clicked(self):
+        logger.debug("Settings opened by user")
+        settings_dialog = SettingsDialog(self)
+        if settings_dialog.exec():
+            logger.debug("Settings updated by user")
+            TimerMode.update_timers()
+            if not (self.tddr.timer_focus.timer.isActive() or self.tddr.timer_break.timer.isActive()):
+                self.tddr.reset()
+                    
+        else:
+            logger.debug("Settings change cancelled by user")
+            
+        
 
 if __name__ == "__main__":
     app = QApplication([])
@@ -317,8 +440,11 @@ if __name__ == "__main__":
     try:
         import src.db as db
     except Exception as e:
-        error_msg = MsgBox(str(e))
+        error_msg = MsgBox(str(e) + "\n\nPlease update the database settings!"
+        "\n\nTimer entry will not be added to the database, "
+        "more errors will be encountered when timer has completed.")
         error_msg.exec()
+        # sys.exit(1)
 
     _, _, x, y = app.primaryScreen().geometry().getRect()
     item = Tododoro_Win()

@@ -3,19 +3,16 @@
         "format": "{asctime} | {name:>12} | {levelname:>8} | {message}",
         "outfile": "\\tododoro.log"
     },
-
     "db_type": "sql",
-
     "postgres": {
         "user": "python",
         "pw": "",
         "dbname": "tododoro"
-    }, 
-
+    },
     "timer": {
         "focus-short": 25,
-        "focus-extended": 45, 
-        "break-short": 10,
-        "break-extended": 40
+        "focus-extended": 50,
+        "break-short": 5,
+        "break-extended": 15
     }
 }
