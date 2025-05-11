@@ -11,7 +11,7 @@
     },
     "timer": {
         "focus-short": 25,
-        "focus-extended": 50,
+        "focus-extended": 45,
         "break-short": 5,
         "break-extended": 15
     }

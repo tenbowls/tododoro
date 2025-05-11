@@ -10,6 +10,7 @@ Because this program has to communicate with an PostgresSQL server, knowledge of
 2. Update the PostgreSQL infomation to the config.json file in the config folder (One workaround to not provide the password is to edit the "pg_hba.conf" file to enable server to trust the username)
 3. Update the config.json file with the timing (in minutes) that you want, only a maximum of 59 mins is allowed
 4. Run the tododoro_gui.py to start the timer app
+5. Configurations can also be updated from the File > Settings menu, program has to be restarted manually for any changes made to the database settings for it to take place
 
 *Updating postgres details in config file*: 
 ```
@@ -38,12 +39,15 @@ host    all             all             ::1/128                 scram-sha-256
     }
 ```
 
+*Updating configurations from the File > Settings menu*: \
+![Settings menu](.\img\settings_menu.png)
+
 # Usage
 The section below contains information on the usage of the timer. When the program encounter handled exceptions (i.e. unable to establish connection to the database, etc), an error message will appear. 
 
 ## Timer 
 - Tododoro has two timers "Focus" and "Break" (only one timer can be allowed at the same time)
-- The timing for the timers can be set in the config.json file (refer to section above), note that the maximum limit is 59mins
+- The timing for the timers can be set in the config.json file (refer to section above) or from the File > Settings menu, note that the maximum limit is 59mins
 - The "Extended time" check box can be toggled to switch between the short timer or the extended timer 
 - Timer can be paused, resumed, and stopped 
 - Once the timer is stopped, an entry of the time lapsed will be added to the SQL table, and timer will be reset

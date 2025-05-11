@@ -1,10 +1,13 @@
 import sys, winsound 
 from PySide6.QtCore import QTime, QTimer, Slot, Qt
-from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QCheckBox, QWidget, QGridLayout, QTabWidget, QLCDNumber, QPushButton, QHBoxLayout, QSizePolicy, \
-QLineEdit, QMessageBox, QStatusBar, QDialog, QDialogButtonBox, QVBoxLayout
-from PySide6.QtGui import QIcon, QAction 
-import src.overhead as oh 
+from PySide6.QtWidgets import QApplication, QCheckBox, QWidget, QGridLayout, QTabWidget, QLCDNumber, QPushButton, QHBoxLayout, QSizePolicy, \
+QMessageBox, QStyle 
 from enum import Enum
+
+if __name__ == "__main__":
+    import overhead as oh
+else:
+    import src.overhead as oh 
 
 # For displaying error messages with the critical icon
 class MsgBox(QMessageBox):
@@ -25,7 +28,7 @@ except Exception as e:
     error_msg.exec()
     sys.exit(1)
 
-logger = oh.get_logger("Tododoro GUI", "w")
+logger = oh.get_logger("Pomodoro")
 logger.debug("Logger started")
 
 # For storing the 4 different timers from the config file to be used by the program
@@ -117,7 +120,7 @@ def convert_from_ms(ms: int) -> tuple:
     sec = (ms - hr * (1000 * 60 * 60) - mins * (1000 * 60))  // 1000
     return hr, mins, sec 
 
-class Tododoro(QWidget):
+class Pomodoro(QWidget):
     def __init__(self):
         super().__init__()
 
@@ -147,7 +150,14 @@ class Tododoro(QWidget):
         self.stop_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.stop_button.setEnabled(False)
         self.stop_button.setStyleSheet(f"background-color: {ObjectsColour.STOP_DISABLED.value}")
+        
         # self.timer_type.setStyleSheet("""background-color: #AAAAAA;""")
+
+        self.pause_icon = self.start_pause.style().standardIcon(QStyle.StandardPixmap.SP_MediaPause)
+        self.play_icon = self.start_pause.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
+        self.stop_icon = self.stop_button.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop)
+        self.start_pause.setIcon(self.play_icon)
+        self.stop_button.setIcon(self.stop_icon)
 
         # Create tab widget 
         self.tabbar = QTabWidget()
@@ -209,11 +219,13 @@ class Tododoro(QWidget):
         timer.pause_timer()
         self.start_pause.setText("Resume")
         self.start_pause.setStyleSheet(f"background-color: {ObjectsColour.START.value}")
+        self.start_pause.setIcon(self.play_icon)
 
     def start_timer(self, timer: QTimer):
         timer.start_timer()
         self.start_pause.setText("Pause")
         self.start_pause.setStyleSheet(f"background-color: {ObjectsColour.PAUSE.value}")
+        self.start_pause.setIcon(self.pause_icon)
 
     @Slot()
     def start_or_pause_timer(self):
@@ -276,6 +288,7 @@ class Tododoro(QWidget):
         self.tabbar.setTabEnabled(0, True)
         self.tabbar.setTabEnabled(1, True)
         self.start_pause.setText("Start")
+        self.start_pause.setIcon(self.play_icon)
         self.initial = True
         self.timer_starting_time = None 
         self.timer_ending_time = None
@@ -313,142 +326,22 @@ class Tododoro(QWidget):
             error_msg.exec()
             return 
         
-class SettingsDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Settings")
-        buttons = QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel 
-        self.buttonBox = QDialogButtonBox(buttons)
-
-        self.buttonBox.accepted.connect(self.accept)
-        self.buttonBox.rejected.connect(self.reject)
-
-        txt_timer_settings = QLabel("Timer Settings")
-        txt_timer_settings.setStyleSheet("font-weight: bold")
-        txt_db_settings = QLabel("Database Settings")
-        txt_db_settings.setStyleSheet("font-weight: bold")
-
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
-
-        # Layout for Timer Settings 
-        layout_timer_config = QGridLayout()
-        layout_timer_config.addWidget(txt_timer_settings, 0, 0, 1, 2, Qt.AlignmentFlag.AlignCenter)
-        self.timer_qlineedit_dict = {}
-        for i, (k, v) in enumerate(timer_config.items(), 1):
-            self.timer_qlineedit_dict[k] = (QLineEdit(str(v)), i)
-        for k, v in self.timer_qlineedit_dict.items():
-            layout_timer_config.addWidget(QLabel(k), v[1], 0, Qt.AlignmentFlag.AlignRight)
-            layout_timer_config.addWidget(v[0], v[1], 1)
-        self.layout.addLayout(layout_timer_config)
-
-        self.layout.addWidget(QLabel("")) #Adds an empty row after the timer config
-
-        # Layout for Database Settings 
-        layout_db_config = QGridLayout()
-        layout_db_config.addWidget(txt_db_settings, 0, 0, 1, 2, Qt.AlignmentFlag.AlignCenter)
-        self.db_qlineedit_dict = {}
-        for i, (k, v) in enumerate(db_config.items(), 1):
-            self.db_qlineedit_dict[k] = (QLineEdit(v), i)
-        for k, v in self.db_qlineedit_dict.items():
-            layout_db_config.addWidget(QLabel(k), v[1], 0, Qt.AlignmentFlag.AlignRight)
-            layout_db_config.addWidget(v[0], v[1], 1)
-        self.layout.addLayout(layout_db_config)
-
-        self.layout.addWidget(QLabel("")) #Adds an empty row after the db config
-
-        layout_button = QGridLayout()
-        layout_button.addWidget(self.buttonBox, 0, 0, Qt.AlignmentFlag.AlignCenter)
-        self.layout.addLayout(layout_button)
-
-        self.resize(self.minimumSize())
-
-    def accept(self):
-        check = True
-        # Checking timer inputs to make sure they are int
-        for k, v in self.timer_qlineedit_dict.items():
-            if not v[0].displayText().isdigit():
-                error_msg = MsgBox(f"Timer value {v[0].displayText()} in {k} is not an integer")
-                error_msg.exec()
-                check = False
-                return
-
-        for v in self.db_qlineedit_dict.values():
-            if v[0].isModified():
-                restart_msg = QMessageBox(text="Database settings have be modified. Please restart to use the latest settings!", icon=QMessageBox.Icon.Information)
-                restart_msg.exec()
-                print("is modified")
-                break
-
-        # If input ok, update JSON file
-        for k, v in self.timer_qlineedit_dict.items():
-            timer_config[k] = int(v[0].displayText())
-        for k, v in self.db_qlineedit_dict.items():
-            db_config[k] = v[0].displayText() 
-        config["timer"] = timer_config
-        config["postgres"] = db_config
-
-        try:
-            oh.update_config(config)
-        except Exception as e:
-            error_msg = MsgBox(str(e))
-            error_msg.exec()
-
-        # End the dialog if ok
-        QDialog.accept(self)
-
-        
-
-
-class Tododoro_Win(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.tddr = Tododoro()
-        self.setCentralWidget(self.tddr)
-        self.setWindowTitle("Tododoro")
-        # self.setWindowIcon(QIcon("timer2.ico"))
-        # self.setStyleSheet("background-color: #EEEEEE")
-
-        menu = self.menuBar()
-        file_menu = menu.addMenu("File")
-
-        settings = QAction("Settings", self)
-        settings.setStatusTip("The settings button")
-        settings.triggered.connect(self.settings_clicked)
-
-        file_menu.addAction(settings) 
-
-        # self.setStatusBar(QStatusBar(self))
-
-    def settings_clicked(self):
-        logger.debug("Settings opened by user")
-        settings_dialog = SettingsDialog(self)
-        if settings_dialog.exec():
-            logger.debug("Settings updated by user")
-            TimerMode.update_timers()
-            if not (self.tddr.timer_focus.timer.isActive() or self.tddr.timer_break.timer.isActive()):
-                self.tddr.reset()
-                    
-        else:
-            logger.debug("Settings change cancelled by user")
-            
-        
-
 if __name__ == "__main__":
     app = QApplication([])
 
     try:
-        import src.db as db
+        import db 
     except Exception as e:
+        logger.error(f"Importing db.py from the GUI failed: {e}")
         error_msg = MsgBox(str(e) + "\n\nPlease update the database settings!"
         "\n\nTimer entry will not be added to the database, "
         "more errors will be encountered when timer has completed.")
         error_msg.exec()
         # sys.exit(1)
 
-    _, _, x, y = app.primaryScreen().geometry().getRect()
-    item = Tododoro_Win()
+    item = Pomodoro()
     item.show()
+    app.setStyle('Fusion')
     app.exec()
     db.end_connection()
     sys.exit(0)

@@ -1,8 +1,8 @@
 import psycopg, sys, os
 
 if __name__ == "__main__":
-    import overhead as oh 
-else: 
+    import overhead as oh
+else:
     import src.overhead as oh 
 
 # Get logger and start logging
