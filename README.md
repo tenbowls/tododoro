@@ -1,5 +1,12 @@
+# Table of Contents
+1. [Summary](#summary)
+2. [Setup](#setup)
+3. [Pomodoro](#pomodoro)
+4. [To do list](#to-do-list)
+5. [Program Structure](#program-structure)
+
 # Summary
-This is Tododoro, a pomodoro timer with tracking using PostgreSQL database (with local server). 
+This is Tododoro, a pomodoro timer and a to do list with tracking using PostgreSQL database (with local server). 
 
 Pomodoro Technique is a time management method developed in the 1980s for productivity. A timer is used to break work into intervals, typically 25 minutes of focused work separated by 5 minutes of short breaks, (see [Wikipedia](https://en.wikipedia.org/wiki/Pomodoro_Technique) for more details.)
 
@@ -40,12 +47,12 @@ host    all             all             ::1/128                 scram-sha-256
 ```
 
 *Updating configurations from the File > Settings menu*: \
-![Settings menu](.\img\settings_menu.png)
+![Settings menu](./img/settings_menu.png)
 
-# Usage
-The section below contains information on the usage of the timer. When the program encounter handled exceptions (i.e. unable to establish connection to the database, etc), an error message will appear. 
+# Pomodoro 
+The section below contains information on the usage of the pomodoro timer. When the program encounter handled exceptions (i.e. unable to establish connection to the database, etc), an error message will appear. 
 
-## Timer 
+## Timer Usage
 - Tododoro has two timers "Focus" and "Break" (only one timer can be allowed at the same time)
 - The timing for the timers can be set in the config.json file (refer to section above) or from the File > Settings menu, note that the maximum limit is 59mins
 - The "Extended time" check box can be toggled to switch between the short timer or the extended timer 
@@ -76,6 +83,60 @@ The section below contains information on the usage of the timer. When the progr
 *Sample of the SQL pomodoro table viewed in pgAdmin* \
 ![Sample of the SQL pomodoro table](./img/pomodoro_table.png)
 
+# To do list
+The section below contains information on the usage of the todolist. 
+
+## To do list Usage
+![alt text](./img/todolist_window.png)
+
+## Sections
+- The todolist page can be divided into sections (in the image above, there are three sections; "Projects", "Learning", "My Section")
+- Sections can be added by clicking the '+' tab 
+- Sections can be deleted by pressing the 'x' button 
+- Sections with identical names cannot be added 
+
+## Adding Tasks
+- Only one tasks can be selected at the same time (in the image above, the "Main Task #1" is selected)
+- Tasks can be added by typing into the prompt at the top of the program and pressing "Enter" or the "Insert" button 
+- To insert a main task, no task must be selected 
+- To insert a sub task, select a main task to add the sub task under it 
+- Tasks of the same name under the same section cannot be created 
+
+## Buttons 
+- **Complete**: Mark the task as complete in the database and removes it from view 
+  - An undo button will appear temporary on the bottom left in case the button is accidentally clicked
+  - Main tasks with existing sub task(s) will not be allowed to be marked as completed 
+- **Delete**: Delete the task permanently
+  - for main task a window asking for confirmation will pop up
+  - for sub task an undo button will appear temporarily on the bottom left 
+  - When deleting sections or tasks, all task under that will be deleted permanently 
+- **Rename**: Rename the task
+- **Unselect**: Unselect any task selected and clears the task in the focus section
+- **Focus**: Adds a task to the focus section to indicate which task to do next (in the image above, the task is "Sub Task #2")
+  - the focus section is reset on every restart of the program
+  - to remove the task from the focus section, use the "Clear" or "Unselect" button 
+
+
+## SQL structure 
+- SQL database will consist of three tables: todolist_section, todolist_main_tasks, todolist_sub_tasks
+- todolist_section will consist of two columns:
+  1. **section_name** *VARCHAR*: name of the sections in the to do list 
+  2. **section_id** *INT*: unique id of the section name, referred to by the other tables  
+- todolist_main_tasks will consist of six columns:
+  1. **start_time** *TIMESTAMP WITH TIME ZONE*: time when the task is added 
+  2. **end_time** *TIMESTAMP WITH TIME ZONE*: time when the task is completed, empty otherwise
+  3. **main_task_name** *VARCHAR*: name of the main task in the to do list
+  4. **main_task_id** *INT*: unique id of the main task, referred to by the sub task table
+  5. **section_id** *INT*: refers to the section by its id
+  6. **status** *status_type*: indicates whether the task is pending or completed
+- todolist_sub_tasks will consist of six columns: 
+  1. **start_time** *TIMESTAMP WITH TIME ZONE*: time when the task is added 
+  2. **end_time** *TIMESTAMP WITH TIME ZONE*: time when the task is completed, empty otherwise
+  3. **sub_task_name** *VARCHAR*: name of the sub task in the to do list
+  4. **main_task_id** *INT*: refers to the main task by its id 
+  5. **section_id** *INT*: refers to the section by its id
+  6. **status** *status_type*: indicates whether the task is pending or completed
+
 # Program Structure
 ```
 |_img
@@ -85,12 +146,18 @@ The section below contains information on the usage of the timer. When the progr
 |_src
   |_db.py 
   |_overhead.py
+  |_pomodoro.py
+  |_todolist_main.py
+  |_todolist_section.py
   |_tododoro.log
-|_tododoro_gui.py 
+|_tododoro.py 
 |_README.md
 ```
 - **db.py** establishes connection to the SQL database and contains database related functions 
 - **overhead.py** contains helper functions such as returning logger object to ensure consistent log formatting, and function to read the JSON config file
+- **pomodoro.py** implements the pomodoro timer 
+- **todolist_main.py** implements the to do list
+- **todolist_section.py** contains all the widgets to implement the to do list
 - **tododoro.log** log file is stored in the src/ folder, the log file is rewritten upon each program run
 - **config.json** consists of configurations for the database and timers, and logfile formatting
 - **img** folder consists of images for this README.md 
@@ -98,4 +165,3 @@ The section below contains information on the usage of the timer. When the progr
 # Future Improvements 
 Some possible improvement for this program:
 - Data analytics to track productivity 
-- Integrated to do list (hence the name Tododoro and the "task" column in the database table)

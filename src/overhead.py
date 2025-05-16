@@ -1,4 +1,12 @@
 import json, logging, sys, os, datetime
+from PySide6.QtWidgets import QMessageBox
+
+# For displaying error messages with the critical icon
+class ErrorBox(QMessageBox):
+    def __init__(self, msg):
+        super().__init__()
+        self.setText(msg)
+        self.setIcon(QMessageBox.Icon.Critical)
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
