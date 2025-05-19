@@ -22,11 +22,10 @@ duration = "duration"
 timer_category = "timer_category"
 enum_name = "timer_type"
 pkey = "start_time"
-task = "task"
 
 # First element in list is the type of the column, second element indicates if NOT NULL (true = NOT NULL)
 pmdr_columns = {start_time: ["TIMESTAMP WITH TIME ZONE", True], end_time: ["TIMESTAMP WITH TIME ZONE", True], 
-           duration: ["INT", True], timer_category: [enum_name, True], task: ["VARCHAR", False]}
+           duration: ["INT", True], timer_category: [enum_name, True]}
 
 # Hard coded table names, column names for todolist section 
 class Todolist(Enum):
@@ -50,19 +49,21 @@ class Todolist(Enum):
     STATUS = "status"
     START_TIME = "start_time"
     END_TIME = "end_time"
-    SUB_TASK_PKEY = START_TIME
+    SUB_TASK_ID = "sub_task_id"
+    SUB_TASK_PKEY = SUB_TASK_ID
 
     # Status enum type
     STATUS_ENUM = "status_type"
     STATUS_ENUM_TYPES = ("completed", "pending")
 
+# Dictionary for the columns with types for the todolist tables 
 COL_SECTION = {Todolist.SECTION_NAME.value: ["VARCHAR", True], Todolist.SECTION_ID.value: ["INT", True]}
 COL_MAIN_TASKS = {Todolist.MAIN_TASK_NAME.value: ["VARCHAR", True], Todolist.MAIN_TASK_ID.value: ["INT", True], Todolist.SECTION_ID.value: ["INT", True], 
                   Todolist.STATUS.value: [Todolist.STATUS_ENUM.value, True], Todolist.START_TIME.value: ["TIMESTAMP WITH TIME ZONE", True], 
                  Todolist.END_TIME.value: ["TIMESTAMP WITH TIME ZONE", False]}
 COL_SUB_TASKS = {Todolist.SUB_TASK_NAME.value: ["VARCHAR", True], Todolist.MAIN_TASK_ID.value: ["INT", True], Todolist.SECTION_ID.value: ["INT", True],
                  Todolist.STATUS.value: [Todolist.STATUS_ENUM.value, True], Todolist.START_TIME.value: ["TIMESTAMP WITH TIME ZONE", True], 
-                 Todolist.END_TIME.value: ["TIMESTAMP WITH TIME ZONE", False]}
+                 Todolist.END_TIME.value: ["TIMESTAMP WITH TIME ZONE", False], Todolist.SUB_TASK_ID.value: ["INT", True]}
 
 # Connecting to db and creating cursor to db
 try: 
@@ -77,15 +78,18 @@ except psycopg.OperationalError as e:
     raise e
 
 def check_table_exist(tb_name: str) -> bool:
+    '''Check if table 'tb_name' exist in the database'''
     logger.debug(f"Checking if table ({tb_name}) exists")
     return cur.execute(f"""SELECT EXISTS(SELECT * FROM information_schema.tables 
                           WHERE table_name='{tb_name}' AND table_schema='public' AND table_catalog='{db_login["dbname"]}')""").fetchone()[0]
 
 def check_type_exist(enum_name: str) -> bool:
+    '''Check if data type 'enum_name' exist in the database'''
     logger.debug(f"Checking if type ({enum_name}) exists")
     return cur.execute(f"SELECT EXISTS(SELECT * FROM pg_type WHERE typname='{enum_name}')").fetchone()[0]
 
 def get_table_columns(tb_name: str) -> set:
+    '''Return the columns of table 'tb_name' as a set'''
     logger.debug(f"Getting columns for ({tb_name})")
     return set([c for c, _ in cur.execute(f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name='{tb_name}';").fetchall()])
 
@@ -135,9 +139,9 @@ else:
                 cur.execute(f"ALTER TABLE {table_name} ADD PRIMARY KEY ({col})")
                 logger.info(f"Set column ({col}) as primary key")
 
-###################################
-#### Checking Todolist Section ####
-###################################
+##################################
+#### Checking Todolist Tables ####
+##################################
 
 if check_table_exist(Todolist.TABLE_SECTION.value):
     logger.debug(f"Table ({Todolist.TABLE_SECTION.value}) in database found")
@@ -237,24 +241,26 @@ else:
     # Loops through the set of column and check if it is in the existing columns, extra columns are ignored (not deleted)
     for col in desired_cols:
         if col not in cols:
-            cur.execute(f"ALTER TABLE {Todolist.TABLE_SUB_TASKS.value} ADD COLUMN {col} {COL_SUB_TASKS[col][0]} {"NOT NULL"*int(COL_SUB_TASKS[col][1])}")
-            logger.info(f"Added column ({col}) with type ({COL_SUB_TASKS[col][0]}) and NOT NULL is {COL_SUB_TASKS[col][1]}")
-
             if col == Todolist.SUB_TASK_PKEY.value:
-                cur.execute(f"ALTER TABLE {Todolist.TABLE_SUB_TASKS.value} ADD PRIMARY KEY ({Todolist.SUB_TASK_PKEY.value})")
-                logger.info(f"Set column ({col}) as primary key")
+                cur.execute(f"ALTER TABLE {Todolist.TABLE_SUB_TASKS.value} ADD COLUMN {Todolist.SUB_TASK_PKEY.value} \
+                            INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY")
+                logger.info(f"Add column ({col}) and set as primary key")
+            else:
+                cur.execute(f"ALTER TABLE {Todolist.TABLE_SUB_TASKS.value} ADD COLUMN {col} {COL_SUB_TASKS[col][0]} {"NOT NULL"*int(COL_SUB_TASKS[col][1])}")
+                logger.info(f"Added column ({col}) with type ({COL_SUB_TASKS[col][0]}) and NOT NULL is {COL_SUB_TASKS[col][1]}")
+
 
 conn.commit()  # Commit any changes
 logger.debug("Db changes committed")
 
 # NOTE: values sequence are hard coded: duration, end time, start time and timer type
 # Any changes to the columns name will break this 
-def add_timer_row(start_time: str, end_time: str, duration:int , timer_category:str, task:str) -> None:
+def add_timer_row(start_time: str, end_time: str, duration:int , timer_category:str) -> None:
     try:
-        cur.execute(f"INSERT INTO {table_name} (start_time, end_time, duration, timer_category, task) \
-                    VALUES ('{start_time}', '{end_time}', {duration}, '{timer_category}', '{task}')".replace("'None'","NULL"))
+        cur.execute(f"INSERT INTO {table_name} (start_time, end_time, duration, timer_category) \
+                    VALUES ('{start_time}', '{end_time}', {duration}, '{timer_category}')".replace("'None'","NULL"))
         conn.commit()
-        logger.info(f"Added entry to ({table_name}) with {start_time} START, {end_time} END, {duration} DURATION, {timer_category} TYPE, {task} TASK")
+        logger.info(f"Added entry to ({table_name}) with {start_time} START, {end_time} END, {duration} DURATION, {timer_category} TYPE")
     except Exception as e:
         logger.error(f"Failed to add entry to ({table_name}): {e}")
         raise e
@@ -351,8 +357,8 @@ class MainTaskTools():
                         WHERE {Todolist.MAIN_TASK_NAME.value} = '{oldtaskname}') AND {Todolist.SECTION_ID.value} = \
                         (SELECT {Todolist.SECTION_ID.value} FROM {Todolist.TABLE_SECTION.value} WHERE {Todolist.SECTION_NAME.value} = '{section}')")
             conn.commit()
-            logger.debug(f"Updating main task name from '{oldtaskname}' to '{newtaskname}' in section '{section}' \
-                         in table '{Todolist.TABLE_MAIN_TASKS.value}'")
+            logger.debug(f"""Updating main task name from '{oldtaskname}' to '{newtaskname}' in section '{section}' \
+                         in table '{Todolist.TABLE_MAIN_TASKS.value}'""")
         except Exception as e:
             logger.error(f"Failed to update {oldtaskname} with {newtaskname} in section {section} in table {Todolist.TABLE_MAIN_TASKS.value}: {e}")
             raise e
@@ -390,13 +396,14 @@ class MainTaskTools():
                             AND {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.MAIN_TASK_NAME.value} = '{task}' \
                             AND {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[1]}' \
                             AND {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_NAME.value} = '{section}'").fetchone()[0]
-            logger.debug("Got main task ({task}) from section ({section}) with main task id of {id}")
+            logger.debug(f"Got main task ({task}) from section ({section}) with main task id of {id}")
             return id
         except Exception as e:
             logger.error(f"Failed to get main task id of {task} from section {section}: {e}")
             raise e 
         
     def set_main_task_as_pending(task: str, section: str):
+        '''Set the main task status as pending and removes the end time'''
         try:
             cur.execute(f"UPDATE {Todolist.TABLE_MAIN_TASKS.value} SET {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[1]}', \
                         {Todolist.END_TIME.value} = NULL WHERE {Todolist.MAIN_TASK_NAME.value} = '{task}' AND {Todolist.SECTION_ID.value} = \
@@ -414,7 +421,7 @@ class SubTaskTools():
         try:
             sub_tasks = [c[0] for c in cur.execute(f"SELECT {Todolist.SUB_TASK_NAME.value} FROM {Todolist.TABLE_SUB_TASKS.value} \
                                     WHERE {Todolist.MAIN_TASK_ID.value} = {main_task_id} \
-                                    AND {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[1]}' ORDER BY {Todolist.START_TIME.value}").fetchall()]
+                                    AND {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[1]}' ORDER BY {Todolist.SUB_TASK_ID.value}").fetchall()]
             logger.debug(f"Got sub_tasks with main_task_id ({main_task_id}): {sub_tasks}")
             return sub_tasks
         except Exception as e:
@@ -430,9 +437,9 @@ class SubTaskTools():
                         {Todolist.STATUS.value}, {Todolist.START_TIME.value}) VALUES ('{sub_task}', {maintaskid}, {sectionid}, '{Todolist.STATUS_ENUM_TYPES.value[1]}', \
                         '{oh.get_datetime_now()}')")
             conn.commit()
-            logger.debug(f"Adding section name '{section}' to '{Todolist.TABLE_SECTION.value}'")
+            logger.debug(f"Adding sub task '{sub_task}' under '{main_task}'")
         except Exception as e:
-            logger.error(f"Faield to add {section} to table ({Todolist.TABLE_SECTION.value}): {e}")
+            logger.error(f"Faield to add {sub_task} to table ({Todolist.TABLE_SECTION.value}): {e}")
             raise e
 
     def rename_sub_tasks(old_sub_task, new_sub_task: str, main_task: str, section: str):
@@ -458,7 +465,7 @@ class SubTaskTools():
             sectionid = SectionTools.get_section_id(section)
             cur.execute(f"DELETE FROM {Todolist.TABLE_SUB_TASKS.value} WHERE {Todolist.SUB_TASK_NAME.value} = '{sub_task}' \
                         AND {Todolist.MAIN_TASK_ID.value} = {maintaskid} AND {Todolist.SECTION_ID.value} = {sectionid} \
-                        AND {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[1]};")
+                        AND {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[1]}';")
             conn.commit()
             logger.debug(f"Deleting sub task {sub_task} of {main_task} of {section} from {Todolist.TABLE_SUB_TASKS.value}")
         except Exception as e:
@@ -481,6 +488,7 @@ class SubTaskTools():
             raise e
         
     def set_sub_task_as_pending(sub_task: str, main_task: str, section: str):
+        '''Set the status of the sub task as pending and clears the ending time'''
         try:
             maintaskid = MainTaskTools.get_main_task_id(main_task, section)
             sectionid = SectionTools.get_section_id(section)
@@ -489,10 +497,81 @@ class SubTaskTools():
                         WHERE {Todolist.SUB_TASK_NAME.value} = '{sub_task}' \
                         AND {Todolist.MAIN_TASK_ID.value} = {maintaskid} AND {Todolist.SECTION_ID.value} = {sectionid};")
             conn.commit()
-            logger.debug(f"Changed sub task {task} to pending and clearing end time")
+            logger.debug(f"Changed sub task {sub_task} to pending and clearing end time")
         except Exception as e:
             logger.error(f"Failed to update sub task {sub_task} as pending in main task id: {maintaskid}, section id: {sectionid}: {e}")
             raise e
+        
+class Analyse():
+    def get_pomodoro_rows():
+        try:
+            logger.debug("Getting pomodoro rows")
+            return cur.execute(f"SELECT {end_time}, {duration} / 60 AS duration, {timer_category} FROM {table_name} ORDER BY {end_time} DESC").fetchall()
+        except Exception as e:
+            logger.error(f"Failed to get pomodoro rows: {e}")
+            raise e
+        
+    def delete_pomodoro_rows(endtime: str):
+        try:
+            cur.execute(f"DELETE FROM {table_name} WHERE {end_time} = '{endtime}'")
+            conn.commit()
+            logger.debug(f"Deleting pomodoro row with end time of {end_time}")
+        except Exception as e:
+            logger.error(f"Failed to delete pomodoro row with end time of {end_time}: {e}")
+            raise e
+        
+    def get_all_completed_tasks():
+        try:
+            logger.debug("Getting todolist completed tasks")
+            ans = cur.execute(f"SELECT {Todolist.TABLE_SUB_TASKS.value}.{Todolist.END_TIME.value}, {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
+                        {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_SUB_TASKS.value} \
+                        INNER JOIN {Todolist.TABLE_MAIN_TASKS.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.MAIN_TASK_ID.value} = \
+                        {Todolist.TABLE_SUB_TASKS.value}.{Todolist.MAIN_TASK_ID.value} \
+                        INNER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_SUB_TASKS.value}.{Todolist.SECTION_ID.value} = \
+                        {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} \
+                        WHERE {Todolist.TABLE_SUB_TASKS.value}.{Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}' \
+                        UNION \
+                        SELECT {Todolist.END_TIME.value}, NULL AS {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
+                        {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_MAIN_TASKS.value} \
+                        INNER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.SECTION_ID.value} = \
+                        {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} WHERE {Todolist.STATUS.value} = \
+                        '{Todolist.STATUS_ENUM_TYPES.value[0]}' ORDER BY {Todolist.END_TIME.value} DESC").fetchall()
+            return ans 
+        except Exception as e:
+            logger.error(f"Failed to get todolist completed tasks: {e}")
+            raise e
+        
+    def delete_completed_sub_task(subtask, endtime):
+        try:
+            cur.execute(f"DELETE FROM {Todolist.TABLE_SUB_TASKS.value} WHERE {Todolist.SUB_TASK_NAME.value} = '{subtask}' \
+                        AND {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}' \
+                        AND {Todolist.END_TIME.value} = '{endtime}';")
+            conn.commit()
+            logger.debug(f"Deleting completed sub task {subtask} with end time {endtime}")
+        except Exception as e:
+            logger.error(f"Failed to delete sub task {subtask} with endtime: {endtime}: {e}")
+            raise e 
+        
+    def delete_completed_main_task_plus_sub_tasks(maintask, section, endtime):
+        try:
+            # Get main task id 
+            maintaskid = cur.execute(f"SELECT {Todolist.MAIN_TASK_ID.value} FROM {Todolist.TABLE_MAIN_TASKS.value} \
+                                     WHERE {Todolist.MAIN_TASK_NAME.value} = '{maintask}' \
+                                     AND {Todolist.END_TIME.value} = '{endtime}' \
+                                     AND {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}'").fetchone()[0]
+            # Delete sub tasks with main task id 
+            cur.execute(f"DELETE FROM {Todolist.TABLE_SUB_TASKS.value} WHERE {Todolist.MAIN_TASK_ID.value} = '{maintaskid}'")
+            
+            # Delete main task 
+            cur.execute(f"DELETE FROM {Todolist.TABLE_MAIN_TASKS.value} WHERE {Todolist.MAIN_TASK_ID.value} = '{maintaskid}'")
+
+            conn.commit()
+            logger.debug(f"Deleting completed main task '{maintask}' with end time {endtime} in section '{section}' as well as all its associated sub task")
+        except Exception as e:
+            logger.error(f"Failed to delete completed main task '{maintask}' from section '{section}' with end time {endtime} and its associated sub task: {e}")
+            raise e
+
+
 
 def end_connection() -> bool:
     # Commit changes then close db cursor and db connection
@@ -503,4 +582,5 @@ def end_connection() -> bool:
     return cur.closed and conn.closed 
 
 if __name__ == "__main__":
+    print(Analyse.get_all_completed_tasks())
     end_connection()

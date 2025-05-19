@@ -1,5 +1,5 @@
-from PySide6.QtWidgets import QApplication, QTabWidget, QLabel, QTabBar, QMessageBox, QInputDialog
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtWidgets import QApplication, QTabWidget, QLabel, QTabBar, QMessageBox, QInputDialog, QWidget, QVBoxLayout, QHBoxLayout, QPushButton
+from PySide6.QtCore import Slot, Qt, Signal 
 import sys 
 
 
@@ -8,15 +8,27 @@ import src.todolist_section as tdl
 from src.db import SectionTools, MainTaskTools, SubTaskTools
 from src.todolist_section import SubTaskItem
 
+# Get logger and start logging 
 logger = oh.get_logger("Todolist")
 logger.debug("Logger started")
 
+# Decorator to display error message when function fails 
+def error_handler(func):
+    def inner(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"Function execution failed: {e}")
+            err = oh.ErrorBox(str(e))
+            err.exec()
+    return inner 
+
 class Todolist(QTabWidget):
-    w, h = 800, 700
+    update_focus_task_section = Signal(str)
+    update_completed_task = Signal()
+
     def __init__(self):
         super().__init__()
-        
-        self.resize(self.w, self.h)
 
         # Keep track of the tab names to ensure no duplicates 
         # Get the section name from the database 
@@ -45,27 +57,29 @@ class Todolist(QTabWidget):
         if self.tab_sections:
             self.setCurrentIndex(0)
 
-            # Add main tasks to each section
+            # Add main tasks to each section based on database entries 
             main_tasks = MainTaskTools.get_main_tasks()
             for tab in self.tab_sections:
                 for maintask, section in main_tasks:
                     if section == tab:
                         self.widget(self.tab_sections.index(tab)).add_main_task_to_tab(maintask)
                         main_task_id = MainTaskTools.get_main_task_id(maintask, section)
-                        # Add sub tasks to each main task
+
+                        # Add sub tasks to each main task based on database entries 
                         sub_tasks = SubTaskTools.get_sub_tasks(main_task_id)
                         for sub_task in sub_tasks:
                             self.widget(self.tab_sections.index(tab)).tasks_scroll.all_main_tasks.main_task_dicts[maintask].addItem(SubTaskItem(sub_task))
 
     # Slot for when tab_bar is clicked
+    @error_handler
     @Slot()
     def tab_bar_clicked(self, i):
         num_tabs = self.count()
 
         # If tab_bar of "+" is pressed (which is the last tab), create a new tab, else do nothing
         if i == num_tabs - 1:
-            idx = 0 if num_tabs == 1 else num_tabs - 1
-            ans, ok = QInputDialog.getText(self, "New Section Name", "Enter section name:")
+            idx = 0 if num_tabs == 1 else num_tabs - 1 # Index for where the new tab is added 
+            ans, ok = QInputDialog.getText(self, "New Section Name", "Enter section name:") # Prompts the user for tab name 
             if ok:
                 if ans.strip() == '': # Don't allow empty strings as tab names
                     QMessageBox.warning(self, "Empty name", "Empty name is not allowed.")
@@ -92,51 +106,65 @@ class Todolist(QTabWidget):
         tdlSection.complete_sub_task_in_db.connect(self.complete_sub_task_in_db)
         tdlSection.set_main_task_as_pending.connect(self.set_main_task_as_pending)
         tdlSection.set_sub_task_as_pending.connect(self.set_sub_task_as_pending)
+        tdlSection.update_focus_task.connect(self.update_focus_task)
         self.insertTab(i, tdlSection, name)
 
     # Slots for when information in database has to be changed
+    @error_handler 
     @Slot()
     def add_main_task_to_db(self, task):
         MainTaskTools.add_main_tasks(task, self.tabText(self.currentIndex()))
 
+    @error_handler
     @Slot()
     def rename_main_task_in_db(self, oldnametask, newnametask):
         MainTaskTools.rename_main_tasks(oldnametask, newnametask, self.tabText(self.currentIndex()))
 
+    @error_handler
     @Slot()
     def delete_main_task_in_db(self, task):
         MainTaskTools.delete_main_tasks(task, self.tabText(self.currentIndex()))
 
+    @error_handler
     @Slot()
     def complete_main_task_in_db(self, task):
         MainTaskTools.complete_main_tasks(task, self.tabText(self.currentIndex()))
+        self.update_completed_task.emit()
 
+    @error_handler
     @Slot()
     def add_sub_task_to_db(self, subtask, maintask):
         SubTaskTools.add_sub_tasks(subtask, maintask, self.tabText(self.currentIndex()))
 
+    @error_handler
     @Slot()
     def rename_sub_task_in_db(self, oldnametask, newnametask, main_task):
         SubTaskTools.rename_sub_tasks(oldnametask, newnametask, main_task, self.tabText(self.currentIndex()))
 
+    @error_handler
     @Slot()
     def delete_sub_task_in_db(self, subtask, maintask):
         SubTaskTools.delete_sub_tasks(subtask, maintask, self.tabText(self.currentIndex()))
 
+    @error_handler
     @Slot()
     def complete_sub_task_in_db(self, subtask, maintask):
         SubTaskTools.complete_sub_tasks(subtask, maintask, self.tabText(self.currentIndex()))
+        self.update_completed_task.emit()
 
+    @error_handler
     @Slot()
     def set_main_task_as_pending(self, task):
         MainTaskTools.set_main_task_as_pending(task, self.tabText(self.currentIndex()))
 
+    @error_handler  
     @Slot()
     def set_sub_task_as_pending(self, subtask, maintask):
         SubTaskTools.set_sub_task_as_pending(subtask, maintask, self.tabText(self.currentIndex()))
 
     # Slot for when delete button is clicked on the section
-    @Slot()        
+    @error_handler  
+    @Slot()      
     def delete_tab(self, i):
         num = self.widget(i).tasks_scroll.all_main_tasks.get_num_tasks() # Gets the number of all tasks in the section
         ans = QMessageBox.warning(self, "Confirm?", f"Do you want to delete section '{self.tabText(i)}' with {num} open tasks?", 
@@ -161,6 +189,7 @@ class Todolist(QTabWidget):
             
 
     # Slot for when tab is double clicked
+    @error_handler
     @Slot()
     def rename_tab(self, i):
         # Do nothing if the "+" tab is double clicked
@@ -182,11 +211,48 @@ class Todolist(QTabWidget):
             self.setTabText(i, ans[0])
             self.tab_sections.append(ans[0])
             logger.debug(f"Tab at index {i} renamed from '{self.tabText(i)}' to '{ans[0]}'")
-            #TODO: UPDATE new section name in db
 
+    @Slot()
+    def update_focus_task(self, focus_task):
+        self.update_focus_task_section.emit(focus_task)
+
+class FocusSection(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.layout = QHBoxLayout(self)
+        self.setLayout = self.layout
+        self.focus_task = QLabel("FOCUS: ")
+        self.focus_task.setStyleSheet("background-color: #CFFFFF; font-family: 'Arial', 'sans-serif'; font-size: 14px; font-weight: bold;") 
+        #self.focus_task.setMargin(1)
+        self.clear_task = QPushButton("Clear")
+        self.layout.addWidget(self.focus_task, Qt.AlignmentFlag.AlignLeft)
+        self.layout.addWidget(self.clear_task)
+        self.layout.setContentsMargins(0,0,0,0)
+        self.clear_task.released.connect(self.clear_focus_task)
+
+    @Slot()
+    def update_focus_task(self, focus_task):
+        self.focus_task.setText(f"FOCUS: {focus_task}")
+
+    @Slot()
+    def clear_focus_task(self):
+        self.focus_task.setText("FOCUS: ")
+
+class TodolistwFocus(QWidget):
+    w, h = 800, 700
+    def __init__(self):
+        super().__init__()
+        self.layout = QVBoxLayout(self)
+        self.setLayout = self.layout
+        self.focus_section = FocusSection()
+        self.todolist = Todolist()
+        self.layout.addWidget(self.focus_section)
+        self.layout.addWidget(self.todolist)
+        self.todolist.update_focus_task_section.connect(self.focus_section.update_focus_task)
+        
 if __name__ == "__main__":
     app = QApplication([])
-    widget = Todolist()
+    widget = TodolistwFocus()
     widget.show()
     app.exec()
     sys.exit(0)

@@ -87,13 +87,14 @@ The section below contains information on the usage of the pomodoro timer. When 
 The section below contains information on the usage of the todolist. 
 
 ## To do list Usage
-![alt text](./img/todolist_window.png)
+![Todolist Window](./img/todolist_window.png)
 
 ## Sections
 - The todolist page can be divided into sections (in the image above, there are three sections; "Projects", "Learning", "My Section")
 - Sections can be added by clicking the '+' tab 
 - Sections can be deleted by pressing the 'x' button 
 - Sections with identical names cannot be added 
+- Double click on the section name to rename them 
 
 ## Adding Tasks
 - Only one tasks can be selected at the same time (in the image above, the "Main Task #1" is selected)
@@ -101,6 +102,8 @@ The section below contains information on the usage of the todolist.
 - To insert a main task, no task must be selected 
 - To insert a sub task, select a main task to add the sub task under it 
 - Tasks of the same name under the same section cannot be created 
+- Reordering of the tasks are not possible, they are ordered by the time they are added
+- To mass add sub tasks, use the format: ^1-5^ (for example, adding sub task "SUB TASK ^1-5^" will add 5 sub tasks called "SUB TASK 1" to "SUB TASK 5")
 
 ## Buttons 
 - **Complete**: Mark the task as complete in the database and removes it from view 
@@ -114,7 +117,7 @@ The section below contains information on the usage of the todolist.
 - **Unselect**: Unselect any task selected and clears the task in the focus section
 - **Focus**: Adds a task to the focus section to indicate which task to do next (in the image above, the task is "Sub Task #2")
   - the focus section is reset on every restart of the program
-  - to remove the task from the focus section, use the "Clear" or "Unselect" button 
+  - to remove the task from the focus section, use the "Clear" button (note that when the focus task is marked as complete, the focus task is not automatically cleared)
 
 
 ## SQL structure 

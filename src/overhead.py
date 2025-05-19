@@ -1,4 +1,4 @@
-import json, logging, sys, os, datetime
+import json, logging, sys, os, datetime, re 
 from PySide6.QtWidgets import QMessageBox
 
 # For displaying error messages with the critical icon
@@ -43,3 +43,16 @@ def get_logger(name: str, mode='a') -> logging.Logger:
 def get_datetime_now():
     '''Return the current date time in the specified format (e.g. 2025-05-06 18:48:20+08)'''
     return datetime.datetime.now().astimezone().isoformat(timespec='seconds', sep=' ')
+
+def check_task_re(task: str) -> tuple:
+    '''Checks using regex if ^[NUM]-[NUM]^ exists in the string 'task' '''
+    s = re.search(r"\^\d+-\d+\^", task)
+    if s:
+        s = s.group()
+        idx = task.find(s)
+        nums = [int(i) for i in re.findall("\\d+", s)]
+        start, end = sorted(nums)
+        return True, (int(start), int(end)), (task[:idx], task[idx + len(s):])
+    else:
+        return False, None, None
+

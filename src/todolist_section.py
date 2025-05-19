@@ -48,7 +48,7 @@ class Buttons(QWidget):
         #Styling for the buttons
         self.complete_button.setStyleSheet("background-color: #72FCBC") # Complete colour green
         self.delete_button.setStyleSheet("background-color: #FC9595") # Delete colour red 
-        self.focus_button.setStyleSheet("background-color: #8EFAFA") # Focus colour blue 
+        self.focus_button.setStyleSheet("background-color: #CFFFFF") # Focus colour blue 
 
 # QListWidget for each main task with many sub tasks
 class MainTaskList(QListWidget):
@@ -58,7 +58,7 @@ class MainTaskList(QListWidget):
     def __init__(self, main_task_txt):
         # Takes in a main_task_txt name and adds that as the first item
         super().__init__()
-        self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection) # Only one item can be selected in the qlistwidget at the same time 
         self.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
         self.main_task_item = MainTaskItem(main_task_txt)
         self.addItem(self.main_task_item)
@@ -142,6 +142,8 @@ class TodolistSection(QWidget):
     set_main_task_as_pending = Signal(str)
     set_sub_task_as_pending = Signal(str, str)
 
+    update_focus_task = Signal(str)
+
     def __init__(self):
         # Creating some flags for tracking 
         self.selected = None # To ensure only one item is clicked at the same time 
@@ -161,13 +163,13 @@ class TodolistSection(QWidget):
         self.setLayout = self.layout  
 
         # Creating the focus section 
-        self.focus_task = QLabel("FOCUS: ")
-        self.focus_task.setStyleSheet("background-color: #8EFAFA; font-family: 'Arial', 'sans-serif'; font-size: 14px; font-weight: bold;") 
-        self.focus_task.setMargin(1)
-        self.clear_task = QPushButton("Clear")
-        self.clear_task.released.connect(self.clear_focus_task)
-        self.layout.addWidget(self.focus_task, 0, 0, Qt.AlignmentFlag.AlignTop)
-        self.layout.addWidget(self.clear_task, 0, 1)
+        # self.focus_task = QLabel("FOCUS: ")
+        # self.focus_task.setStyleSheet("background-color: #8EFAFA; font-family: 'Arial', 'sans-serif'; font-size: 14px; font-weight: bold;") 
+        # self.focus_task.setMargin(1)
+        # self.clear_task = QPushButton("Clear")
+        # self.clear_task.released.connect(self.clear_focus_task)
+        # self.layout.addWidget(self.focus_task, 0, 0, Qt.AlignmentFlag.AlignTop)
+        # self.layout.addWidget(self.clear_task, 0, 1)
 
         # Creating the prompt message and QLineEdit widgets and adding to the layout
         self.task_prompt = QLineEdit(placeholderText="Main task name")
@@ -214,7 +216,7 @@ class TodolistSection(QWidget):
                     # Check that the main task is not duplicated in the section 
                     main_task_list = MainTaskList(task)
                     main_task_list.clicked.connect(self.item_clicked)
-                    main_task_list.itemClicked.emit(main_task_list.item(0))
+                    main_task_list.itemClicked.emit(main_task_list.item(0)) # Emit signal so the newly added main task is selected 
                     main_task_list.item(0).setSelected(True)
                     self.tasks_scroll.all_main_tasks.main_task_dicts[task] = main_task_list
                     self.task_prompt.setText("")
@@ -227,8 +229,20 @@ class TodolistSection(QWidget):
                     self.task_prompt.setText("")
             else:
                 # If sub task is added 
-                # TODO: Check that sub task is not a repeated item
+                repeat, items, s =  oh.check_task_re(task) # Use regex to check if ^num-num^ format exist for mass adding task 
                 existing_sub_tasks = self.selected_widget.get_num_sub_tasks()
+                if repeat:
+                    for i in range(items[0], items[1] + 1):
+                        task = s[0] + str(i) + s[1]
+                        if task in existing_sub_tasks: # Don't add the task if a same name already exist 
+                            continue 
+                        else:
+                            self.selected_widget.addItem(SubTaskItem(task))
+                            logger.debug(f"Sub task '{task}' added under main task '{self.selected_widget.item(0).text()}'")
+                            self.add_sub_task_to_db.emit(task, self.selected_widget.item(0).text())
+                    self.task_prompt.setText("")
+                    return
+
                 if task in existing_sub_tasks:
                     QMessageBox.warning(self, "Duplicate", f"Duplicate sub task '{task}' not allowed!")
                     return
@@ -274,31 +288,27 @@ class TodolistSection(QWidget):
     def focus(self):
         # If the focus button is clicked, update the text in the focus section
         if self.selected_task:
-            self.focus_task.setText(f"FOCUS: {self.selected_task.text()}")
+            self.update_focus_task.emit(self.selected_task.text())
 
-    @Slot()
-    def clear_focus_task(self):
-        # Clears the text in the focus section if clear is clicked
-        self.focus_task.setText("FOCUS: ")
 
     @Slot()
     def rename(self):
         if self.selected_task:
-            max_len = 50 if self.mode_is_main else 65
+            max_len = 50 if self.mode_is_main else 60
             # Prompt user to enter the new task name
             new_name, accepted = QInputDialog.getText(self, "Rename", f"Enter new name for '{self.selected_task.text()}'", text=f"{self.selected_task.text()}")
             if accepted:
                 new_name = new_name.strip()
-                if new_name:
+                if new_name: # Continue only if not empty string 
                     if len(new_name) > max_len:
                         QMessageBox.information(self, "Character limit exceeded", f"New name exceeded character limit of {max_len}")
                         return
                     logger.debug(f"Updating task name '{self.selected_task.text()}' to '{new_name}'")
-                    if self.selected_task == self.selected_widget.item(0):
+                    if self.selected_task == self.selected_widget.item(0): # If main task is renamed 
                         self.tasks_scroll.all_main_tasks.main_task_dicts[new_name] = self.tasks_scroll.all_main_tasks.main_task_dicts[self.selected_task.text()]
                         del self.tasks_scroll.all_main_tasks.main_task_dicts[self.selected_task.text()]
                         self.rename_main_task_in_db.emit(self.selected_task.text(), new_name)
-                    else:
+                    else: # If sub task is renamed 
                         self.rename_sub_task_in_db.emit(self.selected_task.text(), new_name, self.selected_widget.item(0).text())
                     self.selected_task.setText(new_name)
 
@@ -313,7 +323,14 @@ class TodolistSection(QWidget):
                                            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
                 if ans == QMessageBox.StandardButton.Yes:
                     logger.debug(f"Deleting main task '{self.selected_task.text()}'")
-                    #TODO: Emit signal to delete each subtasks
+                    # Emit signal to delete each subtasks
+                    item_count = self.selected_widget.count()
+                    if item_count > 1:
+                        for i in range(1, item_count):
+                            print(self.selected_widget.item(i).text())
+                            self.delete_sub_task_in_db.emit(self.selected_widget.item(i).text(), self.selected_task.text())
+
+                    # Deleting the main task 
                     self.delete_main_task_in_db.emit(self.selected_task.text())
                     self.tasks_scroll.all_main_tasks.layout.removeWidget(self.selected_widget)
                     del self.tasks_scroll.all_main_tasks.main_task_dicts[self.selected_widget.item(0).text()]
@@ -322,8 +339,8 @@ class TodolistSection(QWidget):
                     self.reset_flags()
             else:
                 # If sub task is selected, delete item without prompt 
-                self.start_timer()
-                self.get_status(False, self.selected_task.text(), self.selected_widget.item(0).text(), False)
+                self.start_timer() # Start timer to show the undo option 
+                self.get_status(False, self.selected_task.text(), self.selected_widget.item(0).text(), False) # Show the status message with undo button 
                 logger.debug(f"Deleting sub task '{self.selected_task.text()}'")
                 self.delete_sub_task_in_db.emit(self.selected_task.text(), self.selected_widget.item(0).text())
                 self.selected_widget.takeItem(self.selected_widget.row(self.selected_task))
@@ -343,14 +360,14 @@ class TodolistSection(QWidget):
                     QMessageBox.warning(self, "Sub tasks not completed", f"{task_count - 1} sub task(s) still exist in"
                                          f" '{self.selected_task.text()}'. \nNot allowed to mark as complete.")
                     return
-                self.start_timer()
-                self.get_status(True, self.selected_task.text(), self.selected_task.text(), True)
+                self.start_timer() # Start timer for the undo message to show 
+                self.get_status(True, self.selected_task.text(), self.selected_task.text(), True) # Show status with undo button 
                 self.complete_main_task_in_db.emit(self.selected_task.text())
                 self.tasks_scroll.all_main_tasks.layout.removeWidget(self.selected_widget)
                 del self.tasks_scroll.all_main_tasks.main_task_dicts[self.selected_widget.item(0).text()]
                 self.selected_widget.deleteLater()
                 self.selected_widget = None
-            else:
+            else: # If selected task is sub task 
                 self.start_timer()
                 self.get_status(False, self.selected_task.text(), self.selected_widget.item(0).text(), True)
                 self.complete_sub_task_in_db.emit(self.selected_task.text(), self.selected_widget.item(0).text())
@@ -395,6 +412,7 @@ class TodolistSection(QWidget):
         self.timer5s.start(8000)
 
     def get_status(self, is_main_task: bool, task_name: str, main_task_name: str, is_complete: bool) -> None:
+        '''Updates the status message with the undo button and update the flags in case undo option is clicked'''
         task_type = "main" if is_main_task else "sub"
         task_action = "Completed" if is_complete else "Deleted"
         self.status_with_undo_msg.setText(f"{task_action} {task_type} task '{task_name}' <a href='a'><b>[Undo]</b></a>")
@@ -410,13 +428,12 @@ class TodolistSection(QWidget):
         self.tasks_scroll.all_main_tasks.main_task_dicts[task] = main_task_list
         self.tasks_scroll.all_main_tasks.layout.addWidget(main_task_list)
 
-
     def set_mode_main(self):
         # Set the prompt to ask for main task
         self.msg_prompt.setText("Insert main task:")
         self.task_prompt.setEnabled(True)
         self.task_prompt.setPlaceholderText("Main task name")
-        self.task_prompt.setMaxLength(65)
+        self.task_prompt.setMaxLength(50)
         self.mode_is_main = True
 
     def set_mode_sub(self):
@@ -424,7 +441,7 @@ class TodolistSection(QWidget):
         self.msg_prompt.setText("Insert sub task:")
         self.task_prompt.setEnabled(True)
         self.task_prompt.setPlaceholderText("Sub task name")
-        self.task_prompt.setMaxLength(70)
+        self.task_prompt.setMaxLength(60)
         self.mode_is_main = False
 
     def disable_prompt(self):
@@ -441,14 +458,10 @@ class TodolistSection(QWidget):
         self.mode_is_main = True
         self.selected_widget = None
         self.selected_task = None
-        self.focus_task.setText("FOCUS: ")
         self.set_mode_main()
 
 if __name__ == "__main__":
     app = QApplication([])
-    #w, h = 700, 600
-    _, _, x, y = app.primaryScreen().geometry().getRect()
     listwidget = TodolistSection()
-    #listwidget.resize(w, h)
     listwidget.show()
     app.exec()
