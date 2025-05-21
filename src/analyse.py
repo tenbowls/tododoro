@@ -1,8 +1,14 @@
 from PySide6.QtWidgets import QTabWidget, QLabel, QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QStyle
 from PySide6.QtCore import Qt, Slot, Signal 
 from PySide6.QtGui import QFont
-from src.db import Analyse
-import sys 
+from src.db import Completed 
+
+from src.overhead import get_logger 
+from src.todolist_main import error_handler
+import src.analyse_todolist as analyse_tdl
+
+logger = get_logger("Analyse")
+logger.debug("Logger started")
 
 # Class for the header row with bold text 
 class HeaderRow(QWidget):
@@ -37,8 +43,8 @@ class RowEntry(QWidget):
 
         for item in args:
             if item:
-                if len(item) > 35:
-                    self.item_label = QLabel(item[:30] + "...")
+                if len(item) > 40:
+                    self.item_label = QLabel(item[:37] + "...")
                 else:
                     self.item_label = QLabel(item)
             else:
@@ -58,27 +64,31 @@ class RowEntry(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.delete_button.released.connect(self.delete_row)
 
+    @error_handler
     @Slot()
     def delete_row(self):
         # Call db function to delete row in pomodoro table where endtime = self.endtime and emit signal to remove the row 
         num = self.layout.count()
         if num == 4:
             # if 3 item in the row, delete from pomodoro timer 
-            Analyse.delete_pomodoro_rows(self.layout.itemAt(0).widget().text())
+            logger.debug(f"Deleting pomodoro timer entry: {self.layout.itemAt(0).widget().text()}")
+            Completed.delete_pomodoro_rows(self.layout.itemAt(0).widget().text())
         elif num == 5:
             # if 4 item in the row, delete from the main task or sub task table
-            sub_task = self.layout.itemAt(1).widget().text()
+            sub_task = self.layout.itemAt(1).widget().toolTip()
             endtime = self.layout.itemAt(0).widget().text()
             
             if sub_task:
                 # if sub task is not blank, delete sub task
-                Analyse.delete_completed_sub_task(sub_task, endtime)
+                logger.debug(f"Deleting completed sub task entry {sub_task} with end time of {endtime}")
+                Completed.delete_completed_sub_task(sub_task, endtime)
 
             else:
                 # delete main task and all its sub task 
-                maintask = self.layout.itemAt(2).widget().text()
-                section = self.layout.itemAt(3).widget().text()
-                Analyse.delete_completed_main_task_plus_sub_tasks(maintask, section, endtime)
+                maintask = self.layout.itemAt(2).widget().toolTip()
+                section = self.layout.itemAt(3).widget().toolTip()
+                logger.debug(f"Deleting completed main task entry {maintask} with end time of {endtime} from section {section}")
+                Completed.delete_completed_main_task_plus_sub_tasks(maintask, section, endtime)
             
         self.deleted_row.emit()
         
@@ -91,16 +101,18 @@ class CompletedPomodoro(QWidget):
         self.layout.setSpacing(0) # Set spacing to 0 so there is no spacing between each row item
         self.update_items()
 
+    @error_handler
     @Slot()
     def update_items(self):
         # Delete the widgets from layout
+        logger.debug("Updating completed pomodoro table")
         while self.layout.count() != 0:
             widget = self.layout.takeAt(0).widget()
             if widget:
                 widget.deleteLater()
 
         # Update the layout 
-        completed_pomo = Analyse.get_pomodoro_rows()
+        completed_pomo = Completed.get_pomodoro_rows()
         self.layout.addWidget(HeaderRow([1, 2, 2], 6, "Time Completed", "Duration (mins)", "Timer Type"))
         for endtime, duration_mins, timertype in completed_pomo:
             rowItem = RowEntry(str(endtime), str(duration_mins), timertype)
@@ -118,6 +130,7 @@ class CompletedPomodoroScrollArea(QScrollArea):
         self.setWidgetResizable(True)
 
 class CompletedTasks(QWidget):
+    update_items_signal = Signal()
     def __init__(self):
         super().__init__()
         self.layout = QVBoxLayout(self)
@@ -125,8 +138,11 @@ class CompletedTasks(QWidget):
         self.layout.setSpacing(0) # Set spacing to 0 so there is no spacing between each row item
         self.update_items()
 
+    @error_handler
     @Slot()
     def update_items(self):
+        logger.debug("Updating completed task table")
+        self.update_items_signal.emit()
         # Delete the widgets from layout
         while self.layout.count() != 0:
             widget = self.layout.takeAt(0).widget()
@@ -134,8 +150,8 @@ class CompletedTasks(QWidget):
                 widget.deleteLater()
 
         # Update the layout 
-        completed_tasks = Analyse.get_all_completed_tasks()
-        self.layout.addWidget(HeaderRow([1, 2, 2, 2], 57, "Time Completed", "Sub Task", "Main Task", "Section"))
+        completed_tasks = Completed.get_all_completed_tasks()
+        self.layout.addWidget(HeaderRow([1, 2, 2, 2], 25, "Time Completed", "Sub Task", "Main Task", "Section"))
         for endtime, sub_task, main_task, section in completed_tasks:
             rowItem = RowEntry(str(endtime), sub_task, main_task, section)
             self.layout.addWidget(rowItem)
@@ -161,12 +177,13 @@ class CompletedTab(QTabWidget):
 
 # Class for the entire analyse tab
 class AnalyseTab(QTabWidget):
-    w, h = 1000, 700
+    w, h = 1200, 700
     def __init__(self):
         super().__init__()
         self.resize(self.w, self.h)
         self.completed_widget = CompletedTab()
+        self.analyse_todolist = analyse_tdl.AnalyseTodolistWidget()
         self.addTab(self.completed_widget, "Completed")
         self.addTab(QLabel("Pomodoro Widget"), "Pomodoro")
-        self.addTab(QLabel("Todolist Widget"), "To do list")
+        self.addTab(self.analyse_todolist, "To do list")
         self.setTabPosition(QTabWidget.TabPosition.West)

@@ -502,7 +502,7 @@ class SubTaskTools():
             logger.error(f"Failed to update sub task {sub_task} as pending in main task id: {maintaskid}, section id: {sectionid}: {e}")
             raise e
         
-class Analyse():
+class Completed():
     def get_pomodoro_rows():
         try:
             logger.debug("Getting pomodoro rows")
@@ -525,15 +525,15 @@ class Analyse():
             logger.debug("Getting todolist completed tasks")
             ans = cur.execute(f"SELECT {Todolist.TABLE_SUB_TASKS.value}.{Todolist.END_TIME.value}, {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
                         {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_SUB_TASKS.value} \
-                        INNER JOIN {Todolist.TABLE_MAIN_TASKS.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.MAIN_TASK_ID.value} = \
+                        LEFT OUTER JOIN {Todolist.TABLE_MAIN_TASKS.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.MAIN_TASK_ID.value} = \
                         {Todolist.TABLE_SUB_TASKS.value}.{Todolist.MAIN_TASK_ID.value} \
-                        INNER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_SUB_TASKS.value}.{Todolist.SECTION_ID.value} = \
+                        LEFT OUTER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_SUB_TASKS.value}.{Todolist.SECTION_ID.value} = \
                         {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} \
                         WHERE {Todolist.TABLE_SUB_TASKS.value}.{Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}' \
                         UNION \
                         SELECT {Todolist.END_TIME.value}, NULL AS {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
                         {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_MAIN_TASKS.value} \
-                        INNER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.SECTION_ID.value} = \
+                        LEFT OUTER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.SECTION_ID.value} = \
                         {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} WHERE {Todolist.STATUS.value} = \
                         '{Todolist.STATUS_ENUM_TYPES.value[0]}' ORDER BY {Todolist.END_TIME.value} DESC").fetchall()
             return ans 
@@ -560,7 +560,7 @@ class Analyse():
                                      AND {Todolist.END_TIME.value} = '{endtime}' \
                                      AND {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}'").fetchone()[0]
             # Delete sub tasks with main task id 
-            cur.execute(f"DELETE FROM {Todolist.TABLE_SUB_TASKS.value} WHERE {Todolist.MAIN_TASK_ID.value} = '{maintaskid}'")
+            # cur.execute(f"DELETE FROM {Todolist.TABLE_SUB_TASKS.value} WHERE {Todolist.MAIN_TASK_ID.value} = '{maintaskid}'")
             
             # Delete main task 
             cur.execute(f"DELETE FROM {Todolist.TABLE_MAIN_TASKS.value} WHERE {Todolist.MAIN_TASK_ID.value} = '{maintaskid}'")
@@ -571,7 +571,109 @@ class Analyse():
             logger.error(f"Failed to delete completed main task '{maintask}' from section '{section}' with end time {endtime} and its associated sub task: {e}")
             raise e
 
-
+class AnalyseTodolist():
+    def get_num_all_completed_tasks() -> int:
+        """Get the number of all completed tasks from the todolist tables"""
+        try:
+            query = f"SELECT COUNT(*) FROM (SELECT {Todolist.TABLE_SUB_TASKS.value}.{Todolist.END_TIME.value}, {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
+                        {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_SUB_TASKS.value} \
+                        LEFT OUTER JOIN {Todolist.TABLE_MAIN_TASKS.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.MAIN_TASK_ID.value} = \
+                        {Todolist.TABLE_SUB_TASKS.value}.{Todolist.MAIN_TASK_ID.value} \
+                        LEFT OUTER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_SUB_TASKS.value}.{Todolist.SECTION_ID.value} = \
+                        {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} \
+                        WHERE {Todolist.TABLE_SUB_TASKS.value}.{Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}' \
+                        UNION \
+                        SELECT {Todolist.END_TIME.value}, NULL AS {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
+                        {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_MAIN_TASKS.value} \
+                        LEFT OUTER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.SECTION_ID.value} = \
+                        {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} WHERE {Todolist.STATUS.value} = \
+                        '{Todolist.STATUS_ENUM_TYPES.value[0]}')"
+            logger.debug("Getting all completed tasks from todolist tables")
+            return cur.execute(query).fetchone()[0]
+        except Exception as e:
+            logger.error("Failed to get all completed tasks from todolist tables")
+            raise e
+        
+    def get_num_completed_tasks(last_x_days: int) -> int:
+        """Get the number of completed tasks in the last x days"""
+        try:
+            logger.debug(f"Getting number of completed tasks in the last {last_x_days} days")
+            query = f"SELECT COUNT(*) FROM (SELECT {Todolist.TABLE_SUB_TASKS.value}.{Todolist.END_TIME.value}, {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
+                        {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_SUB_TASKS.value} \
+                        LEFT OUTER JOIN {Todolist.TABLE_MAIN_TASKS.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.MAIN_TASK_ID.value} = \
+                        {Todolist.TABLE_SUB_TASKS.value}.{Todolist.MAIN_TASK_ID.value} \
+                        LEFT OUTER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_SUB_TASKS.value}.{Todolist.SECTION_ID.value} = \
+                        {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} \
+                        WHERE {Todolist.TABLE_SUB_TASKS.value}.{Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}' \
+                        UNION \
+                        SELECT {Todolist.END_TIME.value}, NULL AS {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
+                        {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_MAIN_TASKS.value} \
+                        LEFT OUTER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.SECTION_ID.value} = \
+                        {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} WHERE {Todolist.STATUS.value} = \
+                        '{Todolist.STATUS_ENUM_TYPES.value[0]}' ORDER BY {Todolist.END_TIME.value} DESC) \
+                            WHERE {Todolist.END_TIME.value} >= NOW() - INTERVAL '{last_x_days} days'"
+            return cur.execute(query).fetchone()[0]
+        except Exception as e:
+            logger.error(f"Failed to get the number of completed tasks in the last {last_x_days} days")
+            raise e 
+        
+    def get_num_completed_task_by_time(time_period: str) -> list:
+        try:
+            date_format = {'day': "%d-%b-%Y (%a)", 'week': "%W", 'month': "%b-%Y", 'year': "%Y"}
+            # query = f"(SELECT date_trunc('{time_period}', end_time), COUNT(*) FROM (SELECT {Todolist.TABLE_SUB_TASKS.value}.{Todolist.END_TIME.value}, {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
+            #             {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_SUB_TASKS.value} \
+            #             LEFT OUTER JOIN {Todolist.TABLE_MAIN_TASKS.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.MAIN_TASK_ID.value} = \
+            #             {Todolist.TABLE_SUB_TASKS.value}.{Todolist.MAIN_TASK_ID.value} \
+            #             LEFT OUTER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_SUB_TASKS.value}.{Todolist.SECTION_ID.value} = \
+            #             {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} \
+            #             WHERE {Todolist.TABLE_SUB_TASKS.value}.{Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}' \
+            #             UNION \
+            #             SELECT {Todolist.END_TIME.value}, NULL AS {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
+            #             {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_MAIN_TASKS.value} \
+            #             LEFT OUTER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.SECTION_ID.value} = \
+            #             {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} WHERE {Todolist.STATUS.value} = \
+            #             '{Todolist.STATUS_ENUM_TYPES.value[0]}') \
+            #             GROUP BY 1 ORDER BY 1 DESC LIMIT 20"
+            interval = {'day': 1, 'week': 7, 'month': 30, 'year': 365}
+            query = f"SELECT date_series, num FROM \
+                    (SELECT generate_series((SELECT DATE_TRUNC('{time_period}', MIN({Todolist.END_TIME.value})) FROM {Todolist.TABLE_SUB_TASKS.value} \
+                    WHERE {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}'), \
+                    (SELECT DATE_TRUNC('{time_period}', MAX({Todolist.END_TIME.value})) FROM {Todolist.TABLE_SUB_TASKS.value} \
+                    WHERE {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}'), \
+                    interval '{interval[time_period]} day') AS date_series) \
+                    LEFT OUTER JOIN \
+                    (SELECT date_trunc('{time_period}', {Todolist.END_TIME.value}) AS x_axis, COUNT(*) AS num FROM \
+                    (SELECT {Todolist.TABLE_SUB_TASKS.value}.{Todolist.END_TIME.value}, {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
+                    {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_SUB_TASKS.value} \
+                    LEFT OUTER JOIN {Todolist.TABLE_MAIN_TASKS.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.MAIN_TASK_ID.value} = \
+                    {Todolist.TABLE_SUB_TASKS.value}.{Todolist.MAIN_TASK_ID.value} \
+                    LEFT OUTER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_SUB_TASKS.value}.{Todolist.SECTION_ID.value} = \
+                    {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} \
+                    WHERE {Todolist.TABLE_SUB_TASKS.value}.{Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}' \
+                    UNION \
+                    SELECT {Todolist.END_TIME.value}, NULL AS {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
+                    {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_MAIN_TASKS.value} \
+                    LEFT OUTER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.SECTION_ID.value} = \
+                    {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} WHERE {Todolist.STATUS.value} = \
+                    '{Todolist.STATUS_ENUM_TYPES.value[0]}') \
+                    GROUP BY 1) AS sorted_tasks \
+                    on sorted_tasks.x_axis = date_series \
+                    ORDER BY date_series DESC \
+                    LIMIT 20"
+            ans = cur.execute(query).fetchall()
+            date_array = []
+            num_array = []
+            date_format_selected = date_format[time_period]
+            for date, num in ans:
+                date_array.insert(0, date.strftime(date_format_selected))
+                if not num:
+                    num = 0
+                num_array.insert(0, num)
+            if time_period == 'week':
+                date_array = [str(int(w) + 1) for w in date_array]
+            return date_array, num_array
+        except Exception as e:
+            raise e
 
 def end_connection() -> bool:
     # Commit changes then close db cursor and db connection
@@ -582,5 +684,5 @@ def end_connection() -> bool:
     return cur.closed and conn.closed 
 
 if __name__ == "__main__":
-    print(Analyse.get_all_completed_tasks())
+    print(AnalyseTodolist.get_num_completed_task_by_time('day'))
     end_connection()

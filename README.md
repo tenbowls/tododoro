@@ -86,7 +86,6 @@ The section below contains information on the usage of the pomodoro timer. When 
 # To do list
 The section below contains information on the usage of the todolist. 
 
-## To do list Usage
 ![Todolist Window](./img/todolist_window.png)
 
 ## Sections

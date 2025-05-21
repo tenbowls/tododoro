@@ -1,6 +1,6 @@
 from PySide6.QtCore import Qt, Slot
-from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QGridLayout, QLineEdit, QMessageBox, QDialog, QDialogButtonBox, QVBoxLayout, QTabWidget, QWidget
-from PySide6.QtGui import QAction 
+from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QGridLayout, QLineEdit, QMessageBox, QDialog, QDialogButtonBox, QVBoxLayout, QTabWidget
+from PySide6.QtGui import QAction
 import src.overhead as oh 
 import sys 
 
@@ -73,7 +73,7 @@ class SettingsDialog(QDialog):
 
         # Layout for Timer Settings 
         layout_timer_config = QGridLayout()
-        layout_timer_config.addWidget(txt_timer_settings, 0, 0, 1, 2, Qt.AlignmentFlag.AlignCenter)
+        layout_timer_config.addWidget(txt_timer_settings, 0, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Creating a qlineedit widget for each timer configuration stored in the dictionary for access to it 
         self.timer_qlineedit_dict = {}
@@ -167,11 +167,16 @@ class MainTabWidget(QTabWidget):
         self.tdl.todolist.update_focus_task_section.connect(self.pomo.update_focus_task)
         self.tdl.focus_section.clear_task.released.connect(self.pomo.clear_focus_task)
 
-        # Add signal to update pomodoro history table when new timer row is added 
+        # Add signal to update pomodoro history table when new timer row is added and to update pomodoro section
         self.pomo.pomo_added.connect(self.analyse.completed_widget.completed_pomo.completed_pomo.update_items)
 
-        # Add signal to update completed task table when tasks have been marked as completed
+        # Add signal to update completed task table when tasks have been marked as completed and update the plot, also update plot when items deleted 
         self.tdl.todolist.update_completed_task.connect(self.analyse.completed_widget.completed_tasks.completed_tasks.update_items)
+        self.tdl.todolist.update_completed_task.connect(self.analyse.analyse_todolist.graph.update_plot)
+        self.tdl.todolist.update_completed_task.connect(self.analyse.analyse_todolist.completed_tasks.update_num_task)
+        self.analyse.completed_widget.completed_tasks.completed_tasks.update_items_signal.connect(self.analyse.analyse_todolist.graph.update_plot)
+        self.analyse.completed_widget.completed_tasks.completed_tasks.update_items_signal.connect(self.analyse.analyse_todolist.completed_tasks.update_num_task)
+
 
 class Tododoro_Win(QMainWindow):
     def __init__(self):
@@ -180,6 +185,7 @@ class Tododoro_Win(QMainWindow):
         self.maintab = MainTabWidget()
         self.setCentralWidget(self.maintab)
         self.maintab.currentChanged.connect(self.change_window)
+        self.maintab.currentChanged.connect(self.center)
 
         self.setWindowTitle("Tododoro")
 
@@ -201,6 +207,7 @@ class Tododoro_Win(QMainWindow):
 
         # self.setStatusBar(QStatusBar(self))
 
+    @Slot()
     def change_window(self, idx):
         self.resize(self.maintab.widget(idx).w, self.maintab.widget(idx).h)
 
@@ -217,6 +224,14 @@ class Tododoro_Win(QMainWindow):
                     
         else:
             logger.debug("Settings change cancelled by user")
+
+    @Slot()
+    def center(self):
+        screen_geometry = self.screen().availableGeometry()
+        window_geometry = self.geometry()
+        x = (screen_geometry.width() - window_geometry.width()) // 2 + screen_geometry.left()
+        y = (screen_geometry.height() - window_geometry.height()) // 2 + screen_geometry.top()
+        self.move(x, y)
 
 if __name__ == "__main__":
     # _, _, x, y = app.primaryScreen().geometry().getRect()
