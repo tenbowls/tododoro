@@ -5,7 +5,7 @@ from src.db import Completed
 
 from src.overhead import get_logger 
 from src.todolist_main import error_handler
-import src.analyse_todolist as analyse_tdl
+import src.analyse_dashboard as analyse_tdl
 
 logger = get_logger("Analyse")
 logger.debug("Logger started")
@@ -94,6 +94,7 @@ class RowEntry(QWidget):
         
 # Class for the entire list of entries with the headers         
 class CompletedPomodoro(QWidget):
+    update_pomo_items = Signal()
     def __init__(self):
         super().__init__()
         self.layout = QVBoxLayout(self)
@@ -106,6 +107,7 @@ class CompletedPomodoro(QWidget):
     def update_items(self):
         # Delete the widgets from layout
         logger.debug("Updating completed pomodoro table")
+        self.update_pomo_items.emit()
         while self.layout.count() != 0:
             widget = self.layout.takeAt(0).widget()
             if widget:
@@ -183,7 +185,8 @@ class AnalyseTab(QTabWidget):
         self.resize(self.w, self.h)
         self.completed_widget = CompletedTab()
         self.analyse_todolist = analyse_tdl.AnalyseTodolistWidget()
+        self.analyse_pomo = analyse_tdl.AnalysePomodoroWidget()
         self.addTab(self.completed_widget, "Completed")
-        self.addTab(QLabel("Pomodoro Widget"), "Pomodoro")
+        self.addTab(self.analyse_pomo, "Pomodoro")
         self.addTab(self.analyse_todolist, "To do list")
         self.setTabPosition(QTabWidget.TabPosition.West)

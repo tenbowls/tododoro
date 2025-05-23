@@ -269,9 +269,15 @@ class Pomodoro(QWidget):
         logger.debug("Timer stopped")
         self.timer_ending_time = oh.get_datetime_now()
         if self.timer_mode[0] == "break":
-            self.add_to_db((self.timer_mode[1] * 60) - (self.timer_break.timer.remainingTime() / 1000))
+            if self.timer_break.timer.isActive():
+                self.add_to_db((self.timer_mode[1] * 60) - (self.timer_break.timer.remainingTime() / 1000))
+            else:
+                self.add_to_db((self.timer_mode[1] * 60) - (self.timer_break.timer.interval() / 1000))
         else:
-            self.add_to_db((self.timer_mode[1] * 60) - (self.timer_focus.timer.remainingTime() / 1000))
+            if self.timer_focus.timer.isActive():
+                self.add_to_db((self.timer_mode[1] * 60) - (self.timer_focus.timer.remainingTime() / 1000))
+            else:
+                self.add_to_db((self.timer_mode[1] * 60) - (self.timer_focus.timer.interval() / 1000))
         self.reset()
 
     def reset(self):

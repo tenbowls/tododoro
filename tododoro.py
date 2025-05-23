@@ -172,10 +172,17 @@ class MainTabWidget(QTabWidget):
 
         # Add signal to update completed task table when tasks have been marked as completed and update the plot, also update plot when items deleted 
         self.tdl.todolist.update_completed_task.connect(self.analyse.completed_widget.completed_tasks.completed_tasks.update_items)
+
         self.tdl.todolist.update_completed_task.connect(self.analyse.analyse_todolist.graph.update_plot)
         self.tdl.todolist.update_completed_task.connect(self.analyse.analyse_todolist.completed_tasks.update_num_task)
         self.analyse.completed_widget.completed_tasks.completed_tasks.update_items_signal.connect(self.analyse.analyse_todolist.graph.update_plot)
         self.analyse.completed_widget.completed_tasks.completed_tasks.update_items_signal.connect(self.analyse.analyse_todolist.completed_tasks.update_num_task)
+        
+        self.pomo.pomo_added.connect(self.analyse.analyse_pomo.graph.update_plot)
+        self.pomo.pomo_added.connect(self.analyse.analyse_pomo.completed_timers.update_num_timers)
+        self.analyse.completed_widget.completed_pomo.completed_pomo.update_pomo_items.connect(self.analyse.analyse_pomo.graph.update_plot)
+        self.analyse.completed_widget.completed_pomo.completed_pomo.update_pomo_items.connect(self.analyse.analyse_pomo.completed_timers.update_num_timers)
+
 
 
 class Tododoro_Win(QMainWindow):

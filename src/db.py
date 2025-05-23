@@ -504,6 +504,7 @@ class SubTaskTools():
         
 class Completed():
     def get_pomodoro_rows():
+        """Get all the pomodoro timer entries"""
         try:
             logger.debug("Getting pomodoro rows")
             return cur.execute(f"SELECT {end_time}, {duration} / 60 AS duration, {timer_category} FROM {table_name} ORDER BY {end_time} DESC").fetchall()
@@ -512,6 +513,7 @@ class Completed():
             raise e
         
     def delete_pomodoro_rows(endtime: str):
+        """Remove a row from the pomodoro table"""
         try:
             cur.execute(f"DELETE FROM {table_name} WHERE {end_time} = '{endtime}'")
             conn.commit()
@@ -521,6 +523,7 @@ class Completed():
             raise e
         
     def get_all_completed_tasks():
+        """Getting all the completed task from the main task and sub task tables"""
         try:
             logger.debug("Getting todolist completed tasks")
             ans = cur.execute(f"SELECT {Todolist.TABLE_SUB_TASKS.value}.{Todolist.END_TIME.value}, {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
@@ -542,6 +545,7 @@ class Completed():
             raise e
         
     def delete_completed_sub_task(subtask, endtime):
+        """Deleting a completed sub task entry from the sub task table"""
         try:
             cur.execute(f"DELETE FROM {Todolist.TABLE_SUB_TASKS.value} WHERE {Todolist.SUB_TASK_NAME.value} = '{subtask}' \
                         AND {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}' \
@@ -553,6 +557,7 @@ class Completed():
             raise e 
         
     def delete_completed_main_task_plus_sub_tasks(maintask, section, endtime):
+        """Deleting a completed main task and all its associated sub tasks"""
         try:
             # Get main task id 
             maintaskid = cur.execute(f"SELECT {Todolist.MAIN_TASK_ID.value} FROM {Todolist.TABLE_MAIN_TASKS.value} \
@@ -618,22 +623,9 @@ class AnalyseTodolist():
             raise e 
         
     def get_num_completed_task_by_time(time_period: str) -> list:
+        """Get the total number of completed task by day/week/month/year"""
         try:
             date_format = {'day': "%d-%b-%Y (%a)", 'week': "%W", 'month': "%b-%Y", 'year': "%Y"}
-            # query = f"(SELECT date_trunc('{time_period}', end_time), COUNT(*) FROM (SELECT {Todolist.TABLE_SUB_TASKS.value}.{Todolist.END_TIME.value}, {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
-            #             {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_SUB_TASKS.value} \
-            #             LEFT OUTER JOIN {Todolist.TABLE_MAIN_TASKS.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.MAIN_TASK_ID.value} = \
-            #             {Todolist.TABLE_SUB_TASKS.value}.{Todolist.MAIN_TASK_ID.value} \
-            #             LEFT OUTER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_SUB_TASKS.value}.{Todolist.SECTION_ID.value} = \
-            #             {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} \
-            #             WHERE {Todolist.TABLE_SUB_TASKS.value}.{Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}' \
-            #             UNION \
-            #             SELECT {Todolist.END_TIME.value}, NULL AS {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
-            #             {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_MAIN_TASKS.value} \
-            #             LEFT OUTER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.SECTION_ID.value} = \
-            #             {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} WHERE {Todolist.STATUS.value} = \
-            #             '{Todolist.STATUS_ENUM_TYPES.value[0]}') \
-            #             GROUP BY 1 ORDER BY 1 DESC LIMIT 20"
             interval = {'day': 1, 'week': 7, 'month': 30, 'year': 365}
             query = f"SELECT date_series, num FROM \
                     (SELECT generate_series((SELECT DATE_TRUNC('{time_period}', MIN({Todolist.END_TIME.value})) FROM {Todolist.TABLE_SUB_TASKS.value} \
@@ -664,6 +656,54 @@ class AnalyseTodolist():
             date_array = []
             num_array = []
             date_format_selected = date_format[time_period]
+            # Return a list of formatted date and the number of tasks completed 
+            for date, num in ans:
+                date_array.insert(0, date.strftime(date_format_selected))
+                if not num: # Convert from None to 0 
+                    num = 0
+                num_array.insert(0, num)
+            if time_period == 'week':
+                date_array = [str(int(w) + 1) for w in date_array]
+            return date_array, num_array
+        except Exception as e:
+            raise e
+        
+    def get_sum_timers(last_x_days: int, timer_type: str):
+        """Get the sum of focus or break timers duration in the last x days"""
+        try:
+            logger.debug(f"Getting the sum of {timer_type} timers in the last {last_x_days} days")
+            if last_x_days:
+                days_conditional = f"AND {end_time} >= NOW() - INTERVAL '{last_x_days} days'"
+            else:
+                days_conditional = "" 
+            query = f"SELECT SUM({duration}) FROM {table_name} WHERE {timer_category} = '{timer_type}' {days_conditional}"
+            ans = cur.execute(query).fetchone()[0]
+            return ans if ans else 0 
+        except Exception as e:
+            logger.error(f"Failed to get the sum of {timer_type} timers in the last {last_x_days} days: {e}")
+            raise e
+    
+    def get_sum_focus_timers_by_time(time_period: str) -> list:
+        """Get the sum of focus timers duration by day/week/month/year"""
+        try:
+            logger.debug(f"Getting sum of focus timer by {timer_category}")
+            date_format = {'day': "%d-%b-%Y (%a)", 'week': "%W", 'month': "%b-%Y", 'year': "%Y"}
+            interval = {'day': 1, 'week': 7, 'month': 30, 'year': 365}
+            query = f"SELECT date_series, sum_duration FROM \
+            (SELECT generate_series( \
+            (SELECT DATE_TRUNC('{time_period}', MIN({end_time})) FROM {table_name} WHERE {timer_category} = 'focus'), \
+            (SELECT DATE_TRUNC('{time_period}', MAX({end_time})) FROM {table_name} WHERE {timer_category} = 'focus'), \
+            interval '{interval[time_period]} day') AS date_series) \
+            LEFT OUTER JOIN \
+            (SELECT date_trunc('{time_period}', {end_time}) AS x_axis, SUM({duration})/60 AS sum_duration FROM {table_name} WHERE {timer_category} = 'focus' GROUP BY 1) \
+            AS sorted_tasks \
+            on sorted_tasks.x_axis = date_series \
+            ORDER BY date_series DESC \
+            LIMIT 20"
+            ans = cur.execute(query).fetchall()
+            date_array = []
+            num_array = []
+            date_format_selected = date_format[time_period]
             for date, num in ans:
                 date_array.insert(0, date.strftime(date_format_selected))
                 if not num:
@@ -673,6 +713,7 @@ class AnalyseTodolist():
                 date_array = [str(int(w) + 1) for w in date_array]
             return date_array, num_array
         except Exception as e:
+            logger.error(f"Failed to get sum of focus timer by {time_period}: {e}")
             raise e
 
 def end_connection() -> bool:
@@ -684,5 +725,5 @@ def end_connection() -> bool:
     return cur.closed and conn.closed 
 
 if __name__ == "__main__":
-    print(AnalyseTodolist.get_num_completed_task_by_time('day'))
+    print(AnalyseTodolist.get_sum_focus_timers_by_time('day'))
     end_connection()
