@@ -154,7 +154,6 @@ class CompletedTimers(QWidget):
         self.drop_down_tasks.addItem("Last 7 days")
         self.drop_down_tasks.addItem("Last 30 days")
         self.drop_down_tasks.addItem("Last 365 days")
-        self.drop_down_tasks.addItem("All")
         self.drop_down_tasks.setCurrentIndex(0)
         self.drop_down_tasks.currentIndexChanged.connect(self.update_num_timers)
         self.drop_down_tasks.setToolTip("Show total duration of timers completed in the last x days")
@@ -163,44 +162,32 @@ class CompletedTimers(QWidget):
         self.layout.insertSpacing(1, 10)
 
         # dictionary to store the text for the various time frame chosen 
-        self.duration_dict = {7: "In the last 7 days", 30: "In the last 30 days", 365: "In the last 365 days", 'All': "From the beginning"}
+        self.duration_dict = {7: "in the last 7 days", 30: "in the last 30 days", 365: "in the last 365 days"}
 
         # labels to display, default to show last 7 days 
         self.total_focus_time = AnalyseTodolist.get_sum_timers(7, 'focus')
-        self.total_break_time = AnalyseTodolist.get_sum_timers(7, 'break')
-        self.productivity = self.total_focus_time * 100 / (self.total_break_time + self.total_focus_time) if self.total_break_time else 100
-        self.duration_text = QLabel(f"{self.duration_dict[7]}", alignment=Qt.AlignmentFlag.AlignCenter)
-        self.label_focus_time = QLabel("Total focus time", alignment=Qt.AlignmentFlag.AlignCenter)
-        self.label_break_time = QLabel("Total break time", alignment=Qt.AlignmentFlag.AlignCenter)
-        self.label_productivity = QLabel("Productivity", alignment=Qt.AlignmentFlag.AlignCenter)
+        self.all_focus_time = AnalyseTodolist.get_sum_all_timers('focus')
+        self.label_focus_time = QLabel(f"Total focus time \n{self.duration_dict[7]}", alignment=Qt.AlignmentFlag.AlignCenter)
+        self.label_all_focus_time = QLabel("Total focus time \nfrom the beginning", alignment=Qt.AlignmentFlag.AlignCenter)
         self.num_total_focus_time = QLabel(str(self.convert_to_hr_mins(self.total_focus_time)), alignment=Qt.AlignmentFlag.AlignCenter) 
-        self.num_total_break_time = QLabel(str(self.convert_to_hr_mins(self.total_break_time)), alignment=Qt.AlignmentFlag.AlignCenter) 
-        self.num_productivity = QLabel(f"{self.productivity:.1f} %", alignment=Qt.AlignmentFlag.AlignCenter) 
+        self.num_all_focus_time = QLabel(str(self.convert_to_hr_mins(self.all_focus_time)), alignment=Qt.AlignmentFlag.AlignCenter) 
 
         # Styling to the text and numbers
-        text_style = "color: #545E75; font-weight: bold; font-size: 15px; font-family: arial, roboto, sans-serif" 
-        num_style = "color: #304D6D; font-weight: bold; font-size: 30px; font-family: arial, roboto, sans-serif"
+        text_style = "color: #545E75; font-weight: bold; font-size: 25px; font-family: arial, roboto, sans-serif" 
+        num_style = "color: #304D6D; font-weight: bold; font-size: 40px; font-family: arial, roboto, sans-serif"
 
-        self.duration_text.setStyleSheet("color: #545E75; font-weight: bold; font-size: 25px; font-family: arial, roboto, sans-serif; text-decoration: underline")
         self.label_focus_time.setStyleSheet(text_style)
-        self.label_break_time.setStyleSheet(text_style)
-        self.label_productivity.setStyleSheet(text_style)
+        self.label_all_focus_time.setStyleSheet(text_style)
 
         self.num_total_focus_time.setStyleSheet(num_style)
-        self.num_total_break_time.setStyleSheet(num_style)
-        self.num_productivity.setStyleSheet(num_style)
+        self.num_all_focus_time.setStyleSheet(num_style)
 
-        self.layout.addWidget(self.duration_text)
-        self.layout.insertSpacing(3, 10)
         self.layout.addWidget(self.label_focus_time)
         self.layout.addWidget(self.num_total_focus_time)
-        self.layout.insertSpacing(6, 10) 
-        self.layout.addWidget(self.label_break_time)
-        self.layout.addWidget(self.num_total_break_time)
-        self.layout.insertSpacing(9, 10) 
-        self.layout.addWidget(self.label_productivity)
-        self.layout.addWidget(self.num_productivity)
-        self.layout.insertSpacing(12, 25) 
+        self.layout.insertSpacing(4, 25) 
+        self.layout.addWidget(self.label_all_focus_time)
+        self.layout.addWidget(self.num_all_focus_time)
+        self.layout.insertSpacing(7, 25) 
         
         self.layout.addStretch()
 
@@ -208,19 +195,12 @@ class CompletedTimers(QWidget):
     @Slot()
     def update_num_timers(self, new_idx=0): # new_idx parameter does not matter as function will search for self.drop_down_tasks.currentIndex()
         logger.debug("Updating sum of timers")
-        choices = [7, 30, 365, 'All']
+        choices = [7, 30, 365]
         new_idx = self.drop_down_tasks.currentIndex()
-        time_period = 0 if new_idx == 3 else choices[new_idx]
 
-        self.total_focus_time = AnalyseTodolist.get_sum_timers(time_period, 'focus')
-        self.total_break_time = AnalyseTodolist.get_sum_timers(time_period, 'break')
-        self.productivity = self.total_focus_time * 100 / (self.total_break_time + self.total_focus_time) if self.total_break_time else 100
-
-        self.duration_text.setText(f"{self.duration_dict[choices[new_idx]]}")
-    
+        self.total_focus_time = AnalyseTodolist.get_sum_timers(choices[new_idx], 'focus')
         self.num_total_focus_time.setText(self.convert_to_hr_mins(self.total_focus_time))
-        self.num_total_break_time.setText(self.convert_to_hr_mins(self.total_break_time))
-        self.num_productivity.setText(f"{self.productivity:.1f} %")
+        self.label_focus_time.setText(f"Total focus time \n{self.duration_dict[choices[new_idx]]}")
 
     def convert_to_hr_mins(self, seconds: int):
         hrs = seconds // 3600 

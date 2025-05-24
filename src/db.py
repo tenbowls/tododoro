@@ -726,15 +726,23 @@ class AnalyseTodolist():
         """Get the sum of focus or break timers duration in the last x days"""
         try:
             logger.debug(f"Getting the sum of {timer_type} timers in the last {last_x_days} days")
-            if last_x_days:
-                days_conditional = f"AND {end_time} >= NOW() - INTERVAL '{last_x_days} days'"
-            else:
-                days_conditional = "" 
+            days_conditional = f"AND {end_time} >= NOW() - INTERVAL '{last_x_days} days'"
             query = f"SELECT SUM({duration}) FROM {table_name} WHERE {timer_category} = '{timer_type}' {days_conditional}"
             ans = cur.execute(query).fetchone()[0]
             return ans if ans else 0 
         except Exception as e:
             logger.error(f"Failed to get the sum of {timer_type} timers in the last {last_x_days} days: {e}")
+            raise e
+        
+    def get_sum_all_timers(timer_type: str):
+        """Get the sum of focus or break timers duration since the beginning"""
+        try:
+            logger.debug(f"Getting the sum of {timer_type} timers since the beginning")
+            query = f"SELECT SUM({duration}) FROM {table_name} WHERE {timer_category} = '{timer_type}'"
+            ans = cur.execute(query).fetchone()[0]
+            return ans if ans else 0 
+        except Exception as e:
+            logger.error(f"Failed to get the sum of {timer_type} timers since the beginning: {e}")
             raise e
     
     def get_sum_focus_timers_by_time(time_period: str) -> list:
