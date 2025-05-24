@@ -162,15 +162,6 @@ class TodolistSection(QWidget):
         self.layout = QGridLayout(self)
         self.setLayout = self.layout  
 
-        # Creating the focus section 
-        # self.focus_task = QLabel("FOCUS: ")
-        # self.focus_task.setStyleSheet("background-color: #8EFAFA; font-family: 'Arial', 'sans-serif'; font-size: 14px; font-weight: bold;") 
-        # self.focus_task.setMargin(1)
-        # self.clear_task = QPushButton("Clear")
-        # self.clear_task.released.connect(self.clear_focus_task)
-        # self.layout.addWidget(self.focus_task, 0, 0, Qt.AlignmentFlag.AlignTop)
-        # self.layout.addWidget(self.clear_task, 0, 1)
-
         # Creating the prompt message and QLineEdit widgets and adding to the layout
         self.task_prompt = QLineEdit(placeholderText="Main task name")
         self.task_prompt.setMaxLength(50)
@@ -193,7 +184,7 @@ class TodolistSection(QWidget):
         self.status_with_undo_msg = QLabel("")
         self.layout.addWidget(self.status_with_undo_msg, 4, 0, 1, 2, Qt.AlignmentFlag.AlignLeft)
         self.status_with_undo_msg.linkActivated.connect(self.undo)
-        self.timer5s = QTimer()
+        self.timer5s = QTimer() # Timer to only show the undo option for 5s
         self.timer5s.timeout.connect(self.status_with_undo_msg.clear)
 
         # Creating the buttons objects and adding to the layout, and connecting the signal to the slots 
@@ -208,7 +199,7 @@ class TodolistSection(QWidget):
 
     @Slot()
     def task_added(self):
-        task = self.task_prompt.displayText().strip()
+        task = self.task_prompt.displayText().strip().replace("'", "")
         if task:
             if self.mode_is_main:
                 # If main task is added
@@ -223,7 +214,7 @@ class TodolistSection(QWidget):
                     self.tasks_scroll.all_main_tasks.layout.addWidget(main_task_list)
                     logger.debug(f"Added main task '{task}' to section")
                     self.add_main_task_to_db.emit(task)
-                else:
+                else: # Show error if main task name already exist 
                     QMessageBox.warning(self, "Duplicate", f"Duplicate main task '{task}' not allowed!")
                     logger.debug(f"Duplicate main task '{task}' is not allowed")
                     self.task_prompt.setText("")
@@ -243,9 +234,10 @@ class TodolistSection(QWidget):
                     self.task_prompt.setText("")
                     return
 
-                if task in existing_sub_tasks:
+                if task in existing_sub_tasks: # Show error if sub task name already exist
                     QMessageBox.warning(self, "Duplicate", f"Duplicate sub task '{task}' not allowed!")
                     return
+                
                 self.selected_widget.addItem(SubTaskItem(task))
                 self.task_prompt.setText("")
                 logger.debug(f"Sub task '{task}' added under main task '{self.selected_widget.item(0).text()}'")
@@ -300,14 +292,16 @@ class TodolistSection(QWidget):
             if accepted:
                 new_name = new_name.strip()
                 if new_name: # Continue only if not empty string 
-                    if len(new_name) > max_len:
+                    if len(new_name) > max_len: # Error if the name is too long 
                         QMessageBox.information(self, "Character limit exceeded", f"New name exceeded character limit of {max_len}")
                         return
+                    
                     logger.debug(f"Updating task name '{self.selected_task.text()}' to '{new_name}'")
                     if self.selected_task == self.selected_widget.item(0): # If main task is renamed 
                         self.tasks_scroll.all_main_tasks.main_task_dicts[new_name] = self.tasks_scroll.all_main_tasks.main_task_dicts[self.selected_task.text()]
                         del self.tasks_scroll.all_main_tasks.main_task_dicts[self.selected_task.text()]
                         self.rename_main_task_in_db.emit(self.selected_task.text(), new_name)
+                        
                     else: # If sub task is renamed 
                         self.rename_sub_task_in_db.emit(self.selected_task.text(), new_name, self.selected_widget.item(0).text())
                     self.selected_task.setText(new_name)
@@ -327,7 +321,6 @@ class TodolistSection(QWidget):
                     item_count = self.selected_widget.count()
                     if item_count > 1:
                         for i in range(1, item_count):
-                            print(self.selected_widget.item(i).text())
                             self.delete_sub_task_in_db.emit(self.selected_widget.item(i).text(), self.selected_task.text())
 
                     # Deleting the main task 

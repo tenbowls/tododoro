@@ -7,7 +7,7 @@ from enum import Enum
 import src.overhead as oh 
 
 # Getting the logger object 
-logger = oh.get_logger("Pomodoro")
+logger = oh.get_logger("pomodoro")
 logger.debug("Logger started")
 
 # Import the add timer function 
@@ -50,16 +50,15 @@ class ObjectsColour(Enum):
     STOP_DISABLED = "#FFE9DB"
     PAUSE = "#FFE90C"
 
-def convert_to_ms(mins: int, sec=0, h=0) -> int:
+def convert_to_ms(mins: int, sec=0) -> int:
     '''Convert mins, sec, and h to millisecond'''
-    return mins * 60 * 1000 + sec * 1000 + h * 60 * 60 * 1000
+    return mins * 60 * 1000 + sec * 1000 
 
 def convert_from_ms(ms: int) -> tuple:
     '''Convert millisecond to hr, mins, sec'''
-    hr = ms // (1000 * 60 * 60)
     mins = mins = (ms - hr * (1000 * 60 * 60)) // (1000 * 60)
-    sec = (ms - hr * (1000 * 60 * 60) - mins * (1000 * 60))  // 1000
-    return hr, mins, sec 
+    sec = (ms - mins * (1000 * 60))  // 1000
+    return mins, sec 
 
 # Timer object 
 class Timer(QLCDNumber):
@@ -117,7 +116,7 @@ class Timer(QLCDNumber):
 
 class Pomodoro(QWidget):
     w, h = 500, 350 # Window size used by the main program 
-    pomo_added = Signal()
+    pomo_added = Signal() # Signal to emit when pomodoro timer entry is added to the database 
 
     def __init__(self):
         super().__init__()
@@ -162,10 +161,6 @@ class Pomodoro(QWidget):
         self.tabbar.addTab(self.timer_focus, "Focus")
         self.tabbar.addTab(self.timer_break, "Break")
         self.tabbar.setTabPosition(QTabWidget.TabPosition.West)
-        # self.tabbar.setStyleSheet(f"""
-        #                           QTabBar {{
-        #                               background-color: {black}
-        #                           }}""")
 
         # Create Horizontal Box Layout for the two buttons 
         self.buttons = QHBoxLayout()
@@ -333,6 +328,7 @@ class Pomodoro(QWidget):
 
     @Slot() 
     def update_focus_task(self, focus_task):
+        # Set the focus task text when focus task is set in the to do list section 
         self.focus_task.setText(f"FOCUS: {focus_task}")
 
     @Slot()
@@ -341,6 +337,7 @@ class Pomodoro(QWidget):
 
     @Slot()
     def toggle_focus_task(self, tab):
+        # If in the break tab, make the focus task section invisible 
         if self.focus_task.isVisible():
             self.focus_task.setVisible(False)
         else:

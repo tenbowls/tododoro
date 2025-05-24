@@ -2,14 +2,13 @@ from PySide6.QtWidgets import QApplication, QTabWidget, QLabel, QTabBar, QMessag
 from PySide6.QtCore import Slot, Qt, Signal 
 import sys 
 
-
 import src.overhead as oh 
 import src.todolist_section as tdl
 from src.db import SectionTools, MainTaskTools, SubTaskTools
 from src.todolist_section import SubTaskItem
 
 # Get logger and start logging 
-logger = oh.get_logger("Todolist")
+logger = oh.get_logger("todolist")
 logger.debug("Logger started")
 
 # Decorator to display error message when function fails 
@@ -18,7 +17,7 @@ def error_handler(func):
         try:
             return func(*args, **kwargs)
         except Exception as e:
-            logger.error(f"Function execution failed: {e}")
+            logger.error(f"Function execution of {func.__name__} failed: {e}")
             err = oh.ErrorBox(str(e))
             err.exec()
     return inner 
@@ -107,7 +106,8 @@ class Todolist(QTabWidget):
         tdlSection.set_main_task_as_pending.connect(self.set_main_task_as_pending)
         tdlSection.set_sub_task_as_pending.connect(self.set_sub_task_as_pending)
         tdlSection.update_focus_task.connect(self.update_focus_task)
-        self.insertTab(i, tdlSection, name)
+
+        self.insertTab(i, tdlSection, name.replace("'", ""))
 
     # Slots for when information in database has to be changed
     @error_handler 
@@ -167,6 +167,8 @@ class Todolist(QTabWidget):
     @Slot()      
     def delete_tab(self, i):
         num = self.widget(i).tasks_scroll.all_main_tasks.get_num_tasks() # Gets the number of all tasks in the section
+
+        # Prompts the user to confirm to delete the section with x number of open tasks
         ans = QMessageBox.warning(self, "Confirm?", f"Do you want to delete section '{self.tabText(i)}' with {num} open tasks?", 
                             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         
@@ -174,19 +176,22 @@ class Todolist(QTabWidget):
             logger.debug(f"Deleting '{self.tabText(i)}' from index {i}")
             if self.currentIndex() == i:
                 self.setCurrentIndex(max(0, i - 1)) # Go to the tab to the left of the deleted tab if the deleted tab is the selected tab
+
             for main_task in self.widget(i).tasks_scroll.all_main_tasks.get_main_tasks():
+
                 # Delete sub tasks when tab is deleted
                 num_sub_tasks = self.widget(i).tasks_scroll.all_main_tasks.main_task_dicts[main_task].count()
                 while num_sub_tasks > 1:
                     item = self.widget(i).tasks_scroll.all_main_tasks.main_task_dicts[main_task].takeItem(1)
                     SubTaskTools.delete_sub_tasks(item.text(), main_task, self.tabText(i))
                     num_sub_tasks = self.widget(i).tasks_scroll.all_main_tasks.main_task_dicts[main_task].count()
+
                 # Delete main tasks when tab is deleted
                 MainTaskTools.delete_main_tasks(main_task, self.tabText(i))
+
             SectionTools.delete_section_name(self.tabText(i))
             self.tab_sections.remove(self.tabText(i))
             self.removeTab(i)
-            
 
     # Slot for when tab is double clicked
     @error_handler
@@ -196,13 +201,15 @@ class Todolist(QTabWidget):
         if i == self.count() - 1:
             return
         
+        # Prompts the user to enter a name
         ans = QInputDialog.getText(self, "Rename", f"Enter new name for {self.tabText(i)}", text=f"{self.tabText(i)}")
         
         if ans[1]:
-            if ans[0] in self.tab_sections:
+            if ans[0] in self.tab_sections: # If tab name already exist, show error
                 QMessageBox.warning(self, "Duplicate", f"Duplicate name '{ans[0]}' not allowed!")
                 return
-            elif ans[0].strip() == "":
+            
+            elif ans[0].strip() == "": # Show error if empty name 
                 QMessageBox.warning(self, "Empty name", "Empty name is not allowed.")
                 return
 
@@ -223,7 +230,6 @@ class FocusSection(QWidget):
         self.setLayout = self.layout
         self.focus_task = QLabel("FOCUS: ")
         self.focus_task.setStyleSheet("background-color: #CFFFFF; font-family: 'Arial', 'sans-serif'; font-size: 14px; font-weight: bold;") 
-        #self.focus_task.setMargin(1)
         self.clear_task = QPushButton("Clear")
         self.layout.addWidget(self.focus_task, Qt.AlignmentFlag.AlignLeft)
         self.layout.addWidget(self.clear_task)

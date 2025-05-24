@@ -54,7 +54,7 @@ class Todolist(Enum):
 
     # Status enum type
     STATUS_ENUM = "status_type"
-    STATUS_ENUM_TYPES = ("completed", "pending")
+    STATUS_ENUM_TYPES = ("completed", "pending", "deleted")
 
 # Dictionary for the columns with types for the todolist tables 
 COL_SECTION = {Todolist.SECTION_NAME.value: ["VARCHAR", True], Todolist.SECTION_ID.value: ["INT", True]}
@@ -249,7 +249,6 @@ else:
                 cur.execute(f"ALTER TABLE {Todolist.TABLE_SUB_TASKS.value} ADD COLUMN {col} {COL_SUB_TASKS[col][0]} {"NOT NULL"*int(COL_SUB_TASKS[col][1])}")
                 logger.info(f"Added column ({col}) with type ({COL_SUB_TASKS[col][0]}) and NOT NULL is {COL_SUB_TASKS[col][1]}")
 
-
 conn.commit()  # Commit any changes
 logger.debug("Db changes committed")
 
@@ -271,7 +270,8 @@ class SectionTools():
         '''Return a list of all the section names from the todolist_section table'''
         try:
             section_name = [c[0] for c in cur.execute(f"SELECT {Todolist.SECTION_NAME.value}, {Todolist.SECTION_ID.value} \
-                                                      FROM {Todolist.TABLE_SECTION.value} ORDER BY {Todolist.SECTION_ID.value};").fetchall()]
+                                                      FROM {Todolist.TABLE_SECTION.value} \
+                                                        ORDER BY {Todolist.SECTION_ID.value};").fetchall()]
             logger.debug(f"Getting section name from '{Todolist.TABLE_SECTION.value}'")
             return section_name
         except Exception as e:
@@ -281,7 +281,8 @@ class SectionTools():
     def add_section_name(section: str) -> None:
         '''Add a single entry to the todolist_section table of a new section_name'''
         try:
-            cur.execute(f"INSERT INTO {Todolist.TABLE_SECTION.value} ({Todolist.SECTION_NAME.value}) VALUES ('{section}')")
+            cur.execute(f"INSERT INTO {Todolist.TABLE_SECTION.value} ({Todolist.SECTION_NAME.value}) \
+                        VALUES ('{section}'')")
             conn.commit()
             logger.debug(f"Adding section name '{section}' to '{Todolist.TABLE_SECTION.value}'")
         except Exception as e:
@@ -314,9 +315,12 @@ class SectionTools():
         '''Return the primary key of the section name in the todolist_section table'''
         try:
             id = cur.execute(f"SELECT {Todolist.SECTION_ID.value} FROM {Todolist.TABLE_SECTION.value} \
-                             WHERE {Todolist.SECTION_NAME.value} = '{name}'").fetchone()[0]
-            logger.debug(f"Got id of section {name} with id {id}")
-            return id
+                             WHERE {Todolist.SECTION_NAME.value} = '{name}'").fetchone()
+            if id:
+                logger.debug(f"Got id of section {name} with id {id}")
+                return id[0]
+            else:
+                return None
         except Exception as e:
             logger.error(f"Failed to get section id of {name} from {Todolist.TABLE_SECTION.value}: {e}")
             raise e
@@ -355,7 +359,8 @@ class MainTaskTools():
             cur.execute(f"UPDATE {Todolist.TABLE_MAIN_TASKS.value} SET {Todolist.MAIN_TASK_NAME.value} = '{newtaskname}' \
                         WHERE {Todolist.MAIN_TASK_ID.value} = (SELECT {Todolist.MAIN_TASK_ID.value} FROM {Todolist.TABLE_MAIN_TASKS.value} \
                         WHERE {Todolist.MAIN_TASK_NAME.value} = '{oldtaskname}') AND {Todolist.SECTION_ID.value} = \
-                        (SELECT {Todolist.SECTION_ID.value} FROM {Todolist.TABLE_SECTION.value} WHERE {Todolist.SECTION_NAME.value} = '{section}')")
+                        (SELECT {Todolist.SECTION_ID.value} FROM {Todolist.TABLE_SECTION.value} WHERE {Todolist.SECTION_NAME.value} = '{section}') \
+                        AND {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[1]}'")
             conn.commit()
             logger.debug(f"""Updating main task name from '{oldtaskname}' to '{newtaskname}' in section '{section}' \
                          in table '{Todolist.TABLE_MAIN_TASKS.value}'""")
@@ -366,11 +371,19 @@ class MainTaskTools():
     def delete_main_tasks(task: str, section: str) -> None:
         '''Delete a single row based on the main task name and the section name'''
         try:
-            cur.execute(f"DELETE FROM {Todolist.TABLE_MAIN_TASKS.value} WHERE {Todolist.MAIN_TASK_NAME.value} = '{task}' AND \
-                        {Todolist.SECTION_ID.value} = (SELECT {Todolist.SECTION_ID.value} FROM {Todolist.TABLE_SECTION.value} \
-                        WHERE {Todolist.SECTION_NAME.value} = '{section}') AND {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[1]}'")
+            # Set main task status to deleted instead of deleting the entry if an associated sub task is marked as completed 
+            if Completed.completed_sub_task_with_main_task_exist(MainTaskTools.get_main_task_id(task, section)):
+                cur.execute(f"UPDATE {Todolist.TABLE_MAIN_TASKS.value} SET {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[2]}' \
+                            WHERE {Todolist.MAIN_TASK_NAME.value} = '{task}' AND {Todolist.SECTION_ID.value} = \
+                            (SELECT {Todolist.SECTION_ID.value} FROM {Todolist.TABLE_SECTION.value} WHERE {Todolist.SECTION_NAME.value} = '{section}') \
+                            AND {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[1]}'")
+            # Permanently delete the main task if no sub task is associated with it
+            else:
+                cur.execute(f"DELETE FROM {Todolist.TABLE_MAIN_TASKS.value} WHERE {Todolist.MAIN_TASK_NAME.value} = '{task}' AND \
+                            {Todolist.SECTION_ID.value} = (SELECT {Todolist.SECTION_ID.value} FROM {Todolist.TABLE_SECTION.value} \
+                            WHERE {Todolist.SECTION_NAME.value} = '{section}') AND {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[1]}'")
+                logger.debug(f"Deleting main task '{task}' in section '{section}' from {Todolist.TABLE_MAIN_TASKS.value}")
             conn.commit()
-            logger.debug(f"Deleting main task '{task}' in section '{section}' from {Todolist.TABLE_MAIN_TASKS.value}")
         except Exception as e:
             logger.error(f"Failed to delete '{task}' from section '{section}' in table {Todolist.TABLE_MAIN_TASKS.value}: {e}")
             raise e
@@ -456,7 +469,6 @@ class SubTaskTools():
             logger.error(f"Failed to rename sub task {old_sub_task} of \
                          main task {main_task} of section {section} from {Todolist.TABLE_SUB_TASKS.value} to new name '{new_sub_task}': {e}")
             raise e
-
 
     def delete_sub_tasks(sub_task: str, main_task: str, section: str):
         '''Delete the sub task from table'''
@@ -556,7 +568,7 @@ class Completed():
             logger.error(f"Failed to delete sub task {subtask} with endtime: {endtime}: {e}")
             raise e 
         
-    def delete_completed_main_task_plus_sub_tasks(maintask, section, endtime):
+    def delete_completed_main_task(maintask, section, endtime):
         """Deleting a completed main task and all its associated sub tasks"""
         try:
             # Get main task id 
@@ -564,16 +576,58 @@ class Completed():
                                      WHERE {Todolist.MAIN_TASK_NAME.value} = '{maintask}' \
                                      AND {Todolist.END_TIME.value} = '{endtime}' \
                                      AND {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}'").fetchone()[0]
-            # Delete sub tasks with main task id 
-            # cur.execute(f"DELETE FROM {Todolist.TABLE_SUB_TASKS.value} WHERE {Todolist.MAIN_TASK_ID.value} = '{maintaskid}'")
             
             # Delete main task 
-            cur.execute(f"DELETE FROM {Todolist.TABLE_MAIN_TASKS.value} WHERE {Todolist.MAIN_TASK_ID.value} = '{maintaskid}'")
+            if Completed.completed_sub_task_with_main_task_exist(maintaskid):
+                cur.execute(f"UPDATE {Todolist.TABLE_MAIN_TASKS.value} SET {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[2]}' \
+                            WHERE {Todolist.MAIN_TASK_ID.value} = '{maintaskid}'")
+            else:
+                cur.execute(f"DELETE FROM {Todolist.TABLE_MAIN_TASKS.value} WHERE {Todolist.MAIN_TASK_ID.value} = '{maintaskid}'")
 
             conn.commit()
             logger.debug(f"Deleting completed main task '{maintask}' with end time {endtime} in section '{section}' as well as all its associated sub task")
         except Exception as e:
             logger.error(f"Failed to delete completed main task '{maintask}' from section '{section}' with end time {endtime} and its associated sub task: {e}")
+            raise e
+        
+    def completed_sub_task_with_main_task_exist(maintask_id: int):
+        """Return true if there exist completed sub task(s) with section_id"""
+        try:
+            ans = cur.execute(f"SELECT {Todolist.SUB_TASK_ID.value} FROM {Todolist.TABLE_SUB_TASKS.value} \
+                              WHERE {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}' AND {Todolist.MAIN_TASK_ID.value} = {maintask_id}").fetchone()
+            return bool(ans)
+        except Exception as e:
+            logger.error(f"Failed to find completed sub task(s) with main task id of {maintask_id}: {e}")
+            raise e
+        
+    def get_filtered_completed_tasks(st_filter: str, mt_filter:str, s_filter: str) -> list:
+        try: 
+            logger.debug("Getting filtered todolist completed tasks")
+
+            # If the arguments are None, replace it with empty string instead
+            st_filter_str = f"AND LOWER({Todolist.SUB_TASK_NAME.value}) LIKE LOWER('%{st_filter.strip()}%')" if st_filter else ""
+            mt_filter_str = f"AND LOWER({Todolist.MAIN_TASK_NAME.value}) LIKE LOWER('%{mt_filter.strip()}%')" if mt_filter else ""
+            s_filter_str = f"AND LOWER({Todolist.SECTION_NAME.value}) LIKE LOWER('%{s_filter.strip()}%')" if s_filter else ""
+
+
+            ans = cur.execute(f"SELECT * FROM (SELECT {Todolist.TABLE_SUB_TASKS.value}.{Todolist.END_TIME.value}, {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
+                        {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_SUB_TASKS.value} \
+                        LEFT OUTER JOIN {Todolist.TABLE_MAIN_TASKS.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.MAIN_TASK_ID.value} = \
+                        {Todolist.TABLE_SUB_TASKS.value}.{Todolist.MAIN_TASK_ID.value} \
+                        LEFT OUTER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_SUB_TASKS.value}.{Todolist.SECTION_ID.value} = \
+                        {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} \
+                        WHERE {Todolist.TABLE_SUB_TASKS.value}.{Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}' \
+                        UNION \
+                        SELECT {Todolist.END_TIME.value}, NULL AS {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
+                        {Todolist.SECTION_NAME.value} FROM {Todolist.TABLE_MAIN_TASKS.value} \
+                        LEFT OUTER JOIN {Todolist.TABLE_SECTION.value} ON {Todolist.TABLE_MAIN_TASKS.value}.{Todolist.SECTION_ID.value} = \
+                        {Todolist.TABLE_SECTION.value}.{Todolist.SECTION_ID.value} WHERE {Todolist.STATUS.value} = \
+                        '{Todolist.STATUS_ENUM_TYPES.value[0]}') \
+                        WHERE TRUE {st_filter_str} {mt_filter_str} {s_filter_str} \
+                        ORDER BY {Todolist.END_TIME.value} DESC").fetchall()
+            return ans 
+        except Exception as e:
+            logger.error("Failed to get filtered todolist completed tasks")
             raise e
 
 class AnalyseTodolist():
@@ -715,6 +769,20 @@ class AnalyseTodolist():
         except Exception as e:
             logger.error(f"Failed to get sum of focus timer by {time_period}: {e}")
             raise e
+        
+def clean_deleted_main_tasks():
+    """Clean up function to delete main task marked as "deleted" when there are no longer any associated sub task
+    so the database does not contain any main tasks that are no longer referenced"""
+    ans = cur.execute(f"SELECT {Todolist.MAIN_TASK_ID.value} FROM {Todolist.TABLE_MAIN_TASKS.value} \
+                      WHERE {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[2]}'").fetchall()
+    maintaskid = [id[0] for id in ans]
+    for id in maintaskid:
+        if not Completed.completed_sub_task_with_main_task_exist(id):
+            cur.execute(f"DELETE FROM {Todolist.TABLE_MAIN_TASKS.value} WHERE {Todolist.MAIN_TASK_ID.value} = {id}")
+            logger.debug(f"Deleted main task id of {id} from table due to no associated completed sub tasks")
+    conn.commit()
+
+clean_deleted_main_tasks()
 
 def end_connection() -> bool:
     # Commit changes then close db cursor and db connection
@@ -725,5 +793,4 @@ def end_connection() -> bool:
     return cur.closed and conn.closed 
 
 if __name__ == "__main__":
-    print(AnalyseTodolist.get_sum_focus_timers_by_time('day'))
     end_connection()

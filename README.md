@@ -3,20 +3,21 @@
 2. [Setup](#setup)
 3. [Pomodoro](#pomodoro)
 4. [To do list](#to-do-list)
-5. [Program Structure](#program-structure)
+5. [Analyse](#analyse)
+6. [Program Structure](#program-structure)
 
 # Summary
 This is Tododoro, a pomodoro timer and a to do list with tracking using PostgreSQL database (with local server). 
 
 Pomodoro Technique is a time management method developed in the 1980s for productivity. A timer is used to break work into intervals, typically 25 minutes of focused work separated by 5 minutes of short breaks, (see [Wikipedia](https://en.wikipedia.org/wiki/Pomodoro_Technique) for more details.)
 
-Because this program has to communicate with an PostgresSQL server, knowledge of PostgreSQL is recommended in order to set up this program. This program works for Window OS.
+Because this program has to communicate with an PostgresSQL server, knowledge of PostgreSQL is recommended in order to set up this program. This program is designed to work with Window OS.
 
 # Setup
 1. Setup PostgreSQL on your PC with a database and user account (user account must have read/write privileges to the database including the public schema)
 2. Update the PostgreSQL infomation to the config.json file in the config folder (One workaround to not provide the password is to edit the "pg_hba.conf" file to enable server to trust the username)
 3. Update the config.json file with the timing (in minutes) that you want, only a maximum of 59 mins is allowed
-4. Run the tododoro_gui.py to start the timer app
+4. Run the tododoro.py to start the app
 5. Configurations can also be updated from the File > Settings menu, program has to be restarted manually for any changes made to the database settings for it to take place
 
 *Updating postgres details in config file*: 
@@ -50,7 +51,7 @@ host    all             all             ::1/128                 scram-sha-256
 ![Settings menu](./img/settings_menu.png)
 
 # Pomodoro 
-The section below contains information on the usage of the pomodoro timer. When the program encounter handled exceptions (i.e. unable to establish connection to the database, etc), an error message will appear. 
+The section below contains information on the usage of the pomodoro timer. 
 
 ## Timer Usage
 - Tododoro has two timers "Focus" and "Break" (only one timer can be allowed at the same time)
@@ -86,6 +87,7 @@ The section below contains information on the usage of the pomodoro timer. When 
 # To do list
 The section below contains information on the usage of the todolist. 
 
+*Interface of the to do list window* \
 ![Todolist Window](./img/todolist_window.png)
 
 ## Sections
@@ -118,7 +120,6 @@ The section below contains information on the usage of the todolist.
   - the focus section is reset on every restart of the program
   - to remove the task from the focus section, use the "Clear" button (note that when the focus task is marked as complete, the focus task is not automatically cleared)
 
-
 ## SQL structure 
 - SQL database will consist of three tables: todolist_section, todolist_main_tasks, todolist_sub_tasks
 - todolist_section will consist of two columns:
@@ -130,7 +131,7 @@ The section below contains information on the usage of the todolist.
   3. **main_task_name** *VARCHAR*: name of the main task in the to do list
   4. **main_task_id** *INT*: unique id of the main task, referred to by the sub task table
   5. **section_id** *INT*: refers to the section by its id
-  6. **status** *status_type*: indicates whether the task is pending or completed
+  6. **status** *status_type*: indicates whether the task is pending, completed or deleted (main tasks with 'deleted' status will be deleted permanently when no sub tasks refers to it)
 - todolist_sub_tasks will consist of six columns: 
   1. **start_time** *TIMESTAMP WITH TIME ZONE*: time when the task is added 
   2. **end_time** *TIMESTAMP WITH TIME ZONE*: time when the task is completed, empty otherwise
@@ -139,6 +140,25 @@ The section below contains information on the usage of the todolist.
   5. **section_id** *INT*: refers to the section by its id
   6. **status** *status_type*: indicates whether the task is pending or completed
 
+# Analyse
+The section below contains information for the "Analyse" tab. 
+## Completed Section
+*Interface of the completed section* \
+![completed section](./img/completed_section.png)
+- The completed section consists of completed Pomodoro timers and completed tasks 
+- The completed tasks section can be filtered to show matching strings which are case-insensitive
+- Completed timer and tasks entries can be deleted from the delete button located beside each entry 
+
+## Pomodoro and To do list Analysis 
+- The pomodoro and to do list analysis section show some analysis of the timers completed and the number of tasks done 
+- The chart shows the latest 20 entries based on the duration chosen (daily / weekly / monthly / yearly)
+
+*Interface of the pomodoro analysis section* \
+![pomodoro analysis](./img/pomodoro_analysis.png)
+
+*Interface of the to do list analysis section* \
+![to do list analysis](./img/todolist_analysis.png)
+
 # Program Structure
 ```
 |_img
@@ -146,6 +166,8 @@ The section below contains information on the usage of the todolist.
 |_config
   |_config.json 
 |_src
+  |_analyse_dashboard.py
+  |_analyse.py
   |_db.py 
   |_overhead.py
   |_pomodoro.py
@@ -155,15 +177,13 @@ The section below contains information on the usage of the todolist.
 |_tododoro.py 
 |_README.md
 ```
+- **analyse_dashboard.py** implements the pomodoro analysis and to do list analysis section 
+- **analyse.py** implement the completed pomodoro and tasks section
 - **db.py** establishes connection to the SQL database and contains database related functions 
-- **overhead.py** contains helper functions such as returning logger object to ensure consistent log formatting, and function to read the JSON config file
+- **overhead.py** contains helper functions such as returning logger object to ensure consistent log formatting, and function to read and update the JSON config file
 - **pomodoro.py** implements the pomodoro timer 
 - **todolist_main.py** implements the to do list
 - **todolist_section.py** contains all the widgets to implement the to do list
 - **tododoro.log** log file is stored in the src/ folder, the log file is rewritten upon each program run
 - **config.json** consists of configurations for the database and timers, and logfile formatting
 - **img** folder consists of images for this README.md 
-
-# Future Improvements 
-Some possible improvement for this program:
-- Data analytics to track productivity 

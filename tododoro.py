@@ -1,5 +1,5 @@
 from PySide6.QtCore import Qt, Slot
-from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QGridLayout, QLineEdit, QMessageBox, QDialog, QDialogButtonBox, QVBoxLayout, QTabWidget
+from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QGridLayout, QLineEdit, QMessageBox, QDialog, QDialogButtonBox, QVBoxLayout, QTabWidget, QCheckBox
 from PySide6.QtGui import QAction
 import src.overhead as oh 
 import sys 
@@ -8,42 +8,21 @@ app = QApplication([]) # Start the QApplication here so the error message can be
 
 # Getting the logger 
 try:
-    logger = oh.get_logger("Tododoro", "w")
+    logger = oh.get_logger("tododoro", "w") # empties the log file whenever program is started
     logger.debug("Logger started")
 except Exception as e:
     error_msg = oh.ErrorBox(f"Failed to create logger: {str(e)}")
     error_msg.exec()
     sys.exit(1)
 
-# Importing the pomodoro module for the pomodoro timer 
-try:
-    import src.pomodoro as pmdr
-except Exception as e:
-    error_msg = oh.ErrorBox(f"Failed to import pomodoro.py: {str(e)}")
-    error_msg.exec()
-    sys.exit(1)
-
-# Importing the db module for database functions 
+# Importing the custom modules
 try:
     import src.db as db
-except Exception as e:
-    error_msg = oh.ErrorBox(f"Failed to import db.py: {str(e)}")
-    error_msg.exec()
-    sys.exit(1)
-
-# Importing the main todolist module 
-try:
+    import src.pomodoro as pmdr
+    import src.analyse as analyse
     import src.todolist_main as todolist
 except Exception as e:
-    error_msg = oh.ErrorBox(f"Failed to import todolist_main.py: {str(e)}")
-    error_msg.exec()
-    sys.exit(1)
-
-# Importing the main todolist module 
-try:
-    import src.analyse as analyse
-except Exception as e:
-    error_msg = oh.ErrorBox(f"Failed to import analyse.py: {str(e)}")
+    error_msg = oh.ErrorBox(f"Failed to import modules: {str(e)}")
     error_msg.exec()
     sys.exit(1)
 
@@ -61,11 +40,13 @@ class SettingsDialog(QDialog):
         self.buttonBox.accepted.connect(self.accept)
         self.buttonBox.rejected.connect(self.reject)
 
-        # Creating two labels for the settings dialog 
+        # Creating three labels for the settings dialog and set them to bold 
         txt_timer_settings = QLabel("Timer Settings")
         txt_timer_settings.setStyleSheet("font-weight: bold")
         txt_db_settings = QLabel("Database Settings")
         txt_db_settings.setStyleSheet("font-weight: bold")
+        txt_interface_settings = QLabel("Interface")
+        txt_interface_settings.setStyleSheet("font-weight: bold")
 
         # Using a vertical layout 
         self.layout = QVBoxLayout()
@@ -109,6 +90,17 @@ class SettingsDialog(QDialog):
         self.layout.addLayout(layout_db_config)
         self.layout.addWidget(QLabel("")) #Adds an empty row after the db config
 
+        # Adding the center window settings
+        interface_layout = QGridLayout()
+        interface_layout.addWidget(txt_interface_settings, 0, 0, 1, 2, Qt.AlignmentFlag.AlignCenter)
+        interface_layout.addWidget(QLabel("Center window on tab change"), 1, 0, Qt.AlignmentFlag.AlignRight)
+        self.center_window_checkbox = QCheckBox()
+        self.center_window_checkbox.setChecked(oh.read_config()['interface']['center_window']) # Read the json file to get the setting
+        interface_layout.addWidget(self.center_window_checkbox, 1, 1, Qt.AlignmentFlag.AlignLeft)
+        self.layout.addLayout(interface_layout)
+        self.layout.addWidget(QLabel(""))
+
+
         # Adding the buttons for the layout
         layout_button = QGridLayout()
         layout_button.addWidget(self.buttonBox, 0, 0, Qt.AlignmentFlag.AlignCenter)
@@ -117,7 +109,7 @@ class SettingsDialog(QDialog):
         self.resize(self.minimumSize())
 
     def accept(self):
-        # Checking timer inputs to make sure they are int
+        # Checking timer inputs to make sure they are int and between 1 and 59
         for k, v in self.timer_qlineedit_dict.items():
             if not v[0].displayText().isdigit():
                 error_msg = pmdr.oh.ErrorBox(f"Timer value {v[0].displayText()} in {k} is not an integer")
@@ -142,9 +134,10 @@ class SettingsDialog(QDialog):
             pmdr.db_config[k] = v[0].displayText().strip()
         pmdr.config["timer"] = pmdr.timer_config
         pmdr.config["postgres"] = pmdr.db_config
+        pmdr.config["interface"] = {'center_window': self.center_window_checkbox.isChecked()}
 
         try:
-            oh.update_config(pmdr.config)
+            oh.update_config(pmdr.config) # Update the JSON file 
         except Exception as e:
             logger.error(f"Updating config.json from the GUI failed: {e}")
             error_msg = pmdr.oh.ErrorBox(str(e))
@@ -177,13 +170,11 @@ class MainTabWidget(QTabWidget):
         self.tdl.todolist.update_completed_task.connect(self.analyse.analyse_todolist.completed_tasks.update_num_task)
         self.analyse.completed_widget.completed_tasks.completed_tasks.update_items_signal.connect(self.analyse.analyse_todolist.graph.update_plot)
         self.analyse.completed_widget.completed_tasks.completed_tasks.update_items_signal.connect(self.analyse.analyse_todolist.completed_tasks.update_num_task)
-        
+
         self.pomo.pomo_added.connect(self.analyse.analyse_pomo.graph.update_plot)
         self.pomo.pomo_added.connect(self.analyse.analyse_pomo.completed_timers.update_num_timers)
         self.analyse.completed_widget.completed_pomo.completed_pomo.update_pomo_items.connect(self.analyse.analyse_pomo.graph.update_plot)
         self.analyse.completed_widget.completed_pomo.completed_pomo.update_pomo_items.connect(self.analyse.analyse_pomo.completed_timers.update_num_timers)
-
-
 
 class Tododoro_Win(QMainWindow):
     def __init__(self):
@@ -191,8 +182,8 @@ class Tododoro_Win(QMainWindow):
 
         self.maintab = MainTabWidget()
         self.setCentralWidget(self.maintab)
-        self.maintab.currentChanged.connect(self.change_window)
-        self.maintab.currentChanged.connect(self.center)
+        self.maintab.currentChanged.connect(self.change_window) # Change the window size if tab is changed
+        self.maintab.currentChanged.connect(self.center) # Center the window to the display if tab is changed 
 
         self.setWindowTitle("Tododoro")
 
@@ -208,7 +199,7 @@ class Tododoro_Win(QMainWindow):
 
         # Adding the settings dialog to the menu bar 
         settings = QAction("Settings", self)
-        settings.setStatusTip("The settings button")
+        #settings.setStatusTip("The settings button")
         settings.triggered.connect(self.settings_clicked)
         file_menu.addAction(settings) 
 
@@ -234,14 +225,14 @@ class Tododoro_Win(QMainWindow):
 
     @Slot()
     def center(self):
-        screen_geometry = self.screen().availableGeometry()
-        window_geometry = self.geometry()
-        x = (screen_geometry.width() - window_geometry.width()) // 2 + screen_geometry.left()
-        y = (screen_geometry.height() - window_geometry.height()) // 2 + screen_geometry.top()
-        self.move(x, y)
+        if oh.read_config()["interface"]["center_window"]: # if the center window on tab change is enabled, proceed to center the window 
+            screen_geometry = self.screen().availableGeometry()
+            window_geometry = self.geometry()
+            x = (screen_geometry.width() - window_geometry.width()) // 2 + screen_geometry.left()
+            y = (screen_geometry.height() - window_geometry.height()) // 2 + screen_geometry.top()
+            self.move(x, y)
 
 if __name__ == "__main__":
-    # _, _, x, y = app.primaryScreen().geometry().getRect()
     item = Tododoro_Win()
     item.show()
 

@@ -14,5 +14,8 @@
         "focus-extended": 45,
         "break-short": 5,
         "break-extended": 10
+    },
+    "interface": {
+        "center_window": true
     }
 }

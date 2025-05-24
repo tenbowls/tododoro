@@ -3,7 +3,7 @@ from PySide6.QtCore import Qt, Slot
 
 import logging
 from src.overhead import get_logger
-from src.todolist_main import error_handler
+from src.overhead import ErrorBox
 
 # Creating logger object to suppress logging messages from matplotlib
 mpl_logger = logging.getLogger('matplotlib')
@@ -19,7 +19,18 @@ from src.db import AnalyseTodolist
 matplotlib.use("QtAgg")
 plt.style.use("seaborn-v0_8-darkgrid")
 
-logger = get_logger("Dashboard")
+logger = get_logger("analyse (d)")
+logger.debug("Logger started")
+
+def error_handler(func):
+    def inner(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"Function execution of {func.__name__} failed: {e}")
+            err = ErrorBox(str(e))
+            err.exec()
+    return inner 
 
 
 class CompletedTasks(QWidget):
@@ -114,7 +125,7 @@ class TodolistPlots(QWidget):
 
     @error_handler
     @Slot()
-    def update_plot(self, idx=1):
+    def update_plot(self, idx=0):
         logger.debug("Updating to do list plot")
         option_chosen = ['day', 'week', 'month', 'year']
         idx = self.drop_down_choices.currentIndex()
