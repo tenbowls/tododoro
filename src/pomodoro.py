@@ -51,12 +51,12 @@ class ObjectsColour(Enum):
     PAUSE = "#FFE90C"
 
 def convert_to_ms(mins: int, sec=0) -> int:
-    '''Convert mins, sec, and h to millisecond'''
+    '''Convert mins, sec to millisecond'''
     return mins * 60 * 1000 + sec * 1000 
 
 def convert_from_ms(ms: int) -> tuple:
     '''Convert millisecond to hr, mins, sec'''
-    mins = mins = (ms - hr * (1000 * 60 * 60)) // (1000 * 60)
+    mins = ms // (1000 * 60)
     sec = (ms - mins * (1000 * 60))  // 1000
     return mins, sec 
 
@@ -86,7 +86,7 @@ class Timer(QLCDNumber):
     @Slot()
     def update_time(self):
         # This function is called from the delay timer to constantly update the time that is displayed
-        time_display = QTime(*convert_from_ms(self.timer.remainingTime()))
+        time_display = QTime(0, *convert_from_ms(self.timer.remainingTime()))
         self.display(time_display.toString("mm:ss"))
 
     def change_time(self, mins, sec=0):
