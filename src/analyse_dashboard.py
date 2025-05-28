@@ -202,6 +202,9 @@ class CompletedTimers(QWidget):
         self.num_total_focus_time.setText(self.convert_to_hr_mins(self.total_focus_time))
         self.label_focus_time.setText(f"Total focus time \n{self.duration_dict[choices[new_idx]]}")
 
+        self.all_focus_time = AnalyseTodolist.get_sum_all_timers('focus')
+        self.num_all_focus_time.setText(self.convert_to_hr_mins(self.all_focus_time))
+
     def convert_to_hr_mins(self, seconds: int):
         hrs = seconds // 3600 
         mins = (seconds - hrs * 3600) // 60
