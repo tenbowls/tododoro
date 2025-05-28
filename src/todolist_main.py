@@ -156,11 +156,13 @@ class Todolist(QTabWidget):
     @Slot()
     def set_main_task_as_pending(self, task):
         MainTaskTools.set_main_task_as_pending(task, self.tabText(self.currentIndex()))
+        self.update_completed_task.emit()
 
     @error_handler  
     @Slot()
     def set_sub_task_as_pending(self, subtask, maintask):
         SubTaskTools.set_sub_task_as_pending(subtask, maintask, self.tabText(self.currentIndex()))
+        self.update_completed_task.emit()
 
     # Slot for when delete button is clicked on the section
     @error_handler  
