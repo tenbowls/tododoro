@@ -292,6 +292,7 @@ class TodolistSection(QWidget):
             if accepted:
                 new_name = new_name.strip()
                 if new_name: # Continue only if not empty string 
+                    new_name = new_name.replace("'", "")
                     if len(new_name) > max_len: # Error if the name is too long 
                         QMessageBox.information(self, "Character limit exceeded", f"New name exceeded character limit of {max_len}")
                         return
