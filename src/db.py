@@ -680,13 +680,13 @@ class AnalyseTodolist():
         """Get the total number of completed task by day/week/month/year"""
         try:
             date_format = {'day': "%d-%b-%Y (%a)", 'week': "%W", 'month': "%b-%Y", 'year': "%Y"}
-            interval = {'day': 1, 'week': 7, 'month': 30, 'year': 365}
+            interval = {'day': '1 day', 'week': '1 week', 'month': '1 month', 'year': '1 year'}
             query = f"SELECT date_series, num FROM \
                     (SELECT generate_series((SELECT DATE_TRUNC('{time_period}', MIN({Todolist.END_TIME.value})) FROM {Todolist.TABLE_SUB_TASKS.value} \
                     WHERE {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}'), \
                     (SELECT DATE_TRUNC('{time_period}', MAX({Todolist.END_TIME.value})) FROM {Todolist.TABLE_SUB_TASKS.value} \
                     WHERE {Todolist.STATUS.value} = '{Todolist.STATUS_ENUM_TYPES.value[0]}'), \
-                    interval '{interval[time_period]} day') AS date_series) \
+                    interval '{interval[time_period]}') AS date_series) \
                     LEFT OUTER JOIN \
                     (SELECT date_trunc('{time_period}', {Todolist.END_TIME.value}) AS x_axis, COUNT(*) AS num FROM \
                     (SELECT {Todolist.TABLE_SUB_TASKS.value}.{Todolist.END_TIME.value}, {Todolist.SUB_TASK_NAME.value}, {Todolist.MAIN_TASK_NAME.value}, \
@@ -750,12 +750,12 @@ class AnalyseTodolist():
         try:
             logger.debug(f"Getting sum of focus timer by {timer_category}")
             date_format = {'day': "%d-%b-%Y (%a)", 'week': "%W", 'month': "%b-%Y", 'year': "%Y"}
-            interval = {'day': 1, 'week': 7, 'month': 30, 'year': 365}
+            interval = {'day': '1 day', 'week': '1 week', 'month': '1 month', 'year': '1 year'}
             query = f"SELECT date_series, sum_duration FROM \
             (SELECT generate_series( \
             (SELECT DATE_TRUNC('{time_period}', MIN({end_time})) FROM {table_name} WHERE {timer_category} = 'focus'), \
             (SELECT DATE_TRUNC('{time_period}', MAX({end_time})) FROM {table_name} WHERE {timer_category} = 'focus'), \
-            interval '{interval[time_period]} day') AS date_series) \
+            interval '{interval[time_period]}') AS date_series) \
             LEFT OUTER JOIN \
             (SELECT date_trunc('{time_period}', {end_time}) AS x_axis, SUM({duration})/60 AS sum_duration FROM {table_name} WHERE {timer_category} = 'focus' GROUP BY 1) \
             AS sorted_tasks \
