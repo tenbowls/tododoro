@@ -282,7 +282,7 @@ class SectionTools():
         '''Add a single entry to the todolist_section table of a new section_name'''
         try:
             cur.execute(f"INSERT INTO {Todolist.TABLE_SECTION.value} ({Todolist.SECTION_NAME.value}) \
-                        VALUES ('{section}'')")
+                        VALUES ('{section}')")
             conn.commit()
             logger.debug(f"Adding section name '{section}' to '{Todolist.TABLE_SECTION.value}'")
         except Exception as e:
